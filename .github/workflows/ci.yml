@@ -55,6 +55,25 @@ jobs:
           for attempt in {1..30}; do curl --fail --silent http://localhost:18089/actuator/health && exit 0; sleep 2; done
           cat /tmp/pharmacy.log
           exit 1
+      - name: Verify catalog falls back to MySQL when Redis is down
+        working-directory: backend
+        env:
+          DB_URL: jdbc:mysql://localhost:3306/pharmacy_delivery_ci?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+          DB_USERNAME: pharmacy_ci
+          DB_PASSWORD: ci-only-password
+          JWT_SECRET: ci-only-signing-key-with-at-least-thirty-two-bytes
+          MESSAGING_ENABLED: 'false'
+        run: |
+          MYSQL_PWD=ci-only-password mysql --user=pharmacy_ci pharmacy_delivery_ci -e "INSERT INTO medicine_category(category_name,sort_no,status,is_deleted) VALUES('Redis Fallback Category',0,1,0); INSERT INTO medicine(category_id,medicine_name,price,stock,warning_stock,prescription_required,status,version,is_deleted) SELECT id,'Redis Fallback Medicine',10.00,0,5,0,1,0,0 FROM medicine_category WHERE category_name='Redis Fallback Category';"
+          sudo systemctl stop redis-server
+          java -jar target/pharmacy-delivery-backend-1.0.0.jar --server.port=18091 > /tmp/pharmacy-redis-down.log 2>&1 &
+          APP_PID=$!
+          trap 'sudo systemctl start redis-server; kill $APP_PID || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent 'http://localhost:18091/api/public/medicines?page=1&size=10' | grep --quiet 'Redis Fallback Medicine'; then break; fi
+            sleep 2
+          done
+          curl --fail --silent 'http://localhost:18091/api/public/medicines?page=1&size=10' | grep --quiet 'Redis Fallback Medicine'
       - name: Upgrade current V1 sample database in place
         env:
           DB_URL: jdbc:mysql://localhost:3306/pharmacy_delivery?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true

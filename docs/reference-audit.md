@@ -19,3 +19,12 @@
 - `PrescriptionService`：Tika 内容检测、随机存储键、根目录归一化、鉴权下载。
 
 后续每个功能 PR 必须在此追加：参考提交、具体代码位置、测试场景、许可证判断和未采用方案。
+
+## Q1：Security 与处方安全测试
+
+| 参考与核验 | 代码级核验点 | 采用的不变量 | 明确拒绝 / 许可证结论 |
+|---|---|---|---|
+| [RuoYi-Vue-Pro `8e43004`](https://github.com/YunaiV/ruoyi-vue-pro/tree/8e43004cf68a405cd3485f98f8a539b97ca6544a) | `SecurityFilterChain` 401/403、无状态 JWT Filter、角色路径匹配 | 未登录 401、角色不足 403、登出后 Access 进入 deny list | 只借鉴 MIT 模式；不引入其脚手架与代码复制 |
+| 本仓库既有实现 | `AuthServiceImpl.refresh` 轮换与 `revokeFamily`；`PrescriptionService` Tika + 路径归一化 + 非本人 `NOT_FOUND` | Refresh 重放撤销令牌族；处方内容检测；越权隐藏存在性；文件仅写入配置目录 | 未改生产代码；本轮仅新增测试。不采用仅 mock Mapper 的假幂等断言 |
+
+测试落点：`JwtServiceTest`、`JwtAuthenticationFilterTest`、`SecurityAccessMvcTest`、`AuthServiceImplTest` 扩展、`PrescriptionServiceTest`（`@TempDir`）、`PrescriptionControllerTest`、`SecurityPrescriptionMySqlIntegrationTest`（`DB_URL` 门控）。

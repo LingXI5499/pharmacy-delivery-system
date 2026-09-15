@@ -1,5 +1,7 @@
 # V2 开发与验收台账
 
+后续多 Agent 任务、依赖、工时和验收标准见 [`remaining-development-plan.md`](remaining-development-plan.md)，可直接分发的任务 Prompt 见 [`agent-prompts.md`](agent-prompts.md)。协作 Agent 必须遵守仓库根目录 [`AGENTS.md`](../AGENTS.md)。
+
 执行顺序遵守：需求与验收条件 → 风险 / 参考审计 → API、数据、状态设计 → 测试设计 → 实现 → 单元 / 集成 / E2E → 故障验证 → 文档 → PR 复查。
 
 ## 当前已实现

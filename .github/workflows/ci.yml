@@ -74,6 +74,47 @@ jobs:
             sleep 2
           done
           curl --fail --silent 'http://localhost:18091/api/public/medicines?page=1&size=10' | grep --quiet 'Redis Fallback Medicine'
+      - name: Verify RabbitMQ outage persists and later replays the order event
+        working-directory: backend
+        env:
+          DB_URL: jdbc:mysql://localhost:3306/pharmacy_delivery_ci?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+          DB_USERNAME: pharmacy_ci
+          DB_PASSWORD: ci-only-password
+          JWT_SECRET: ci-only-signing-key-with-at-least-thirty-two-bytes
+          MESSAGING_ENABLED: 'true'
+          EVENT_REPLAY_INTERVAL_MS: '5000'
+          EVENT_REPLAY_INITIAL_DELAY_MS: '5000'
+          SPRING_CACHE_TYPE: simple
+        run: |
+          MYSQL_PWD=ci-only-password mysql --user=pharmacy_ci pharmacy_delivery_ci -e "INSERT INTO medicine(category_id,medicine_name,price,stock,warning_stock,prescription_required,status,version,is_deleted) SELECT id,'Rabbit Recovery Medicine',10.00,1,5,0,1,0,0 FROM medicine_category WHERE category_name='Redis Fallback Category'; SET @medicine_id=LAST_INSERT_ID(); INSERT INTO medicine_batch(medicine_id,location_id,batch_no,production_date,expiry_date,purchase_price,available_qty,reserved_qty,quality_status,sellable,version) SELECT @medicine_id,id,'CI_RABBIT',CURRENT_DATE,DATE_ADD(CURRENT_DATE,INTERVAL 1 YEAR),5.00,1,0,'QUALIFIED',1,0 FROM inventory_location WHERE location_code='MAIN';"
+          sudo systemctl stop rabbitmq-server
+          java -jar target/pharmacy-delivery-backend-1.0.0.jar --server.port=18092 > /tmp/pharmacy-rabbit-recovery.log 2>&1 &
+          APP_PID=$!
+          trap 'sudo systemctl start rabbitmq-server; kill $APP_PID || true' EXIT
+          for attempt in {1..30}; do curl --fail --silent http://localhost:18092/api/public/categories >/dev/null && break; sleep 2; done
+          curl --fail-with-body --silent -X POST http://localhost:18092/api/auth/register -H 'Content-Type: application/json' -d '{"username":"rabbit_ci","password":"test123456","nickname":"消息测试","phone":""}' | jq -e '.code == 0' >/dev/null
+          ACCESS_TOKEN=$(curl --fail-with-body --silent -X POST http://localhost:18092/api/auth/login -H 'Content-Type: application/json' -d '{"username":"rabbit_ci","password":"test123456"}' | jq -er '.data.accessToken')
+          ADDRESS_ID=$(curl --fail-with-body --silent -X POST http://localhost:18092/api/user/addresses -H 'Content-Type: application/json' -H "Authorization: Bearer $ACCESS_TOKEN" -d '{"receiverName":"测试用户","receiverPhone":"13800000000","province":"测试省","city":"测试市","district":"测试区","detailAddress":"测试地址 1 号","isDefault":true}' | jq -er '.data.id')
+          MEDICINE_ID=$(MYSQL_PWD=ci-only-password mysql --user=pharmacy_ci --batch --skip-column-names pharmacy_delivery_ci -e "SELECT id FROM medicine WHERE medicine_name='Rabbit Recovery Medicine'")
+          curl --fail-with-body --silent -X POST http://localhost:18092/api/user/cart/items -H 'Content-Type: application/json' -H "Authorization: Bearer $ACCESS_TOKEN" -d "{\"medicineId\":$MEDICINE_ID,\"quantity\":1}" | jq -e '.code == 0' >/dev/null
+          CART_ID=$(curl --fail-with-body --silent http://localhost:18092/api/user/cart -H "Authorization: Bearer $ACCESS_TOKEN" | jq -er '.data.items[0].cartItemId')
+          ORDER_ID=$(curl --fail-with-body --silent -X POST http://localhost:18092/api/user/orders -H 'Content-Type: application/json' -H 'Idempotency-Key: ci-rabbit-outage-order' -H "Authorization: Bearer $ACCESS_TOKEN" -d "{\"addressId\":$ADDRESS_ID,\"cartItemIds\":[$CART_ID],\"userRemark\":\"Rabbit outage test\"}" | jq -er '.data.orderId')
+          for attempt in {1..30}; do
+            INCOMPLETE=$(MYSQL_PWD=ci-only-password mysql --user=pharmacy_ci --batch --skip-column-names pharmacy_delivery_ci -e "SELECT COUNT(*) FROM EVENT_PUBLICATION WHERE completion_date IS NULL")
+            if [ "$INCOMPLETE" -gt 0 ]; then break; fi
+            sleep 1
+          done
+          test "$INCOMPLETE" -gt 0
+          MYSQL_PWD=ci-only-password mysql --user=pharmacy_ci --batch --skip-column-names pharmacy_delivery_ci -e "SELECT order_status FROM pharmacy_order WHERE id=$ORDER_ID" | grep --quiet '^PENDING_PAYMENT$'
+          sudo systemctl start rabbitmq-server
+          for attempt in {1..30}; do
+            INCOMPLETE=$(MYSQL_PWD=ci-only-password mysql --user=pharmacy_ci --batch --skip-column-names pharmacy_delivery_ci -e "SELECT COUNT(*) FROM EVENT_PUBLICATION WHERE completion_date IS NULL")
+            ARCHIVED=$(MYSQL_PWD=ci-only-password mysql --user=pharmacy_ci --batch --skip-column-names pharmacy_delivery_ci -e "SELECT COUNT(*) FROM EVENT_PUBLICATION_ARCHIVE")
+            if [ "$INCOMPLETE" -eq 0 ] && [ "$ARCHIVED" -gt 0 ]; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/pharmacy-rabbit-recovery.log
+          exit 1
       - name: Upgrade current V1 sample database in place
         env:
           DB_URL: jdbc:mysql://localhost:3306/pharmacy_delivery?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true

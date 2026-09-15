@@ -76,6 +76,8 @@ app:
     storage-path: ${PRESCRIPTION_STORAGE_PATH:./data/prescriptions}
   messaging:
     enabled: ${MESSAGING_ENABLED:true}
+    replay-interval-ms: ${EVENT_REPLAY_INTERVAL_MS:60000}
+    replay-initial-delay-ms: ${EVENT_REPLAY_INITIAL_DELAY_MS:30000}
   redis:
     distributed-locks-enabled: ${REDIS_DISTRIBUTED_LOCKS_ENABLED:false}
 

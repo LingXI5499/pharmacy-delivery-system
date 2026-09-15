@@ -28,7 +28,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y redis-server rabbitmq-server
           sudo systemctl start redis-server rabbitmq-server
-          sudo mysql -e "CREATE DATABASE pharmacy_delivery_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; CREATE USER 'pharmacy_ci'@'localhost' IDENTIFIED BY 'ci-only-password'; GRANT ALL ON pharmacy_delivery_ci.* TO 'pharmacy_ci'@'localhost';"
+          MYSQL_PWD=root mysql --user=root -e "CREATE DATABASE pharmacy_delivery_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; CREATE USER 'pharmacy_ci'@'localhost' IDENTIFIED BY 'ci-only-password'; GRANT ALL ON pharmacy_delivery_ci.* TO 'pharmacy_ci'@'localhost';"
       - name: Backend tests and coverage report
         working-directory: backend
         run: mvn --batch-mode verify

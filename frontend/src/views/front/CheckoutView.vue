@@ -1,17 +1,49 @@
-
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Location, EditPen } from '@element-plus/icons-vue'
-import { addressApi, orderApi } from '@/api'
+import { addressApi, orderApi, prescriptionApi } from '@/api'
 import { useCartStore } from '@/stores/cart'
 import type { Address, CartItem } from '@/types'
 import { fullAddress, money } from '@/utils'
-const router=useRouter();const route=useRoute();const store=useCartStore();const addresses=ref<Address[]>([]);const selectedAddressId=ref<number>();const remark=ref('');const submitting=ref(false)
-const ids=computed(()=>String(route.query.ids||'').split(',').map(Number).filter(Boolean));const items=computed<CartItem[]>(()=>store.cart.items.filter(i=>ids.value.includes(i.cartItemId)&&i.available));const total=computed(()=>items.value.reduce((s,i)=>s+i.subtotalAmount,0));const selectedAddress=computed(()=>addresses.value.find(a=>a.id===selectedAddressId.value))
-onMounted(async()=>{await store.load();addresses.value=await addressApi.list();selectedAddressId.value=addresses.value.find(a=>a.isDefault===1)?.id||addresses.value[0]?.id;if(!items.value.length)ElMessage.warning('请选择可结算商品')})
-const submit=async()=>{if(!selectedAddressId.value)return ElMessage.warning('请选择收货地址');if(!items.value.length)return router.push('/cart');submitting.value=true;try{const res=await orderApi.create({addressId:selectedAddressId.value,cartItemIds:items.value.map(i=>i.cartItemId),userRemark:remark.value});ElMessage.success('订单提交成功');await store.load();router.replace(`/orders/${res.orderId}`)}finally{submitting.value=false}}
+
+const router=useRouter(),route=useRoute(),store=useCartStore()
+const addresses=ref<Address[]>([]),selectedAddressId=ref<number>(),remark=ref(''),submitting=ref(false)
+const prescriptionFile=ref<File>(),prescriptionId=ref<number>()
+const ids=computed(()=>String(route.query.ids||'').split(',').map(Number).filter(Boolean))
+const items=computed<CartItem[]>(()=>store.cart.items.filter(i=>ids.value.includes(i.cartItemId)&&i.available))
+const total=computed(()=>items.value.reduce((s,i)=>s+i.subtotalAmount,0))
+const needsPrescription=computed(()=>items.value.some(i=>i.prescriptionRequired))
+onMounted(async()=>{await store.load();addresses.value=await addressApi.list();selectedAddressId.value=addresses.value.find(a=>a.isDefault===1)?.id||addresses.value[0]?.id})
+const choosePrescription=(e:Event)=>{prescriptionFile.value=(e.target as HTMLInputElement).files?.[0]}
+const submit=async()=>{
+  if(!selectedAddressId.value)return ElMessage.warning('请选择收货地址')
+  if(!items.value.length)return router.push('/cart')
+  if(needsPrescription.value&&!prescriptionFile.value)return ElMessage.warning('处方药订单必须上传处方')
+  submitting.value=true
+  try{
+    if(needsPrescription.value&&!prescriptionId.value){const rx=await prescriptionApi.upload(prescriptionFile.value!,items.value.map(i=>i.medicineId),items.value.map(i=>i.quantity));prescriptionId.value=rx.id}
+    const res=await orderApi.create({addressId:selectedAddressId.value,cartItemIds:items.value.map(i=>i.cartItemId),prescriptionId:prescriptionId.value,userRemark:remark.value})
+    ElMessage.success(needsPrescription.value?'已提交，等待药师审核':'已预占库存，请在 30 分钟内模拟支付');await store.load();router.replace(`/orders/${res.orderId}`)
+  }finally{submitting.value=false}
+}
 </script>
-<template><div class="page-container checkout-page"><div class="checkout-head"><span class="eyebrow">CHECKOUT</span><h1>确认订单</h1><p>确认配送地址、商品清单与备注后提交订单。</p></div><div class="checkout-layout"><main><section class="checkout-card"><div class="card-title"><h2><el-icon><Location/></el-icon>配送地址</h2><el-button text type="primary" @click="router.push('/address')"><el-icon><EditPen/></el-icon>管理地址</el-button></div><div v-if="addresses.length" class="address-options"><label v-for="a in addresses" :key="a.id" class="address-option" :class="{active:selectedAddressId===a.id}"><input v-model="selectedAddressId" type="radio" :value="a.id"/><span><b>{{a.receiverName}} {{a.receiverPhone}}</b><small>{{fullAddress(a)}}</small></span><em v-if="a.isDefault===1">默认</em></label></div><div v-else class="address-empty">还没有收货地址。<el-button text type="primary" @click="router.push('/address')">立即新增</el-button></div></section><section class="checkout-card"><div class="card-title"><h2>商品清单</h2><span>{{items.length}} 件商品</span></div><article v-for="item in items" :key="item.cartItemId" class="checkout-item"><div class="checkout-image"><img v-if="item.imageUrl" :src="item.imageUrl"/><span v-else>药</span></div><div><h3>{{item.medicineName}}</h3><p>{{money(item.price)}} × {{item.quantity}}</p></div><strong>{{money(item.subtotalAmount)}}</strong></article></section><section class="checkout-card"><div class="card-title"><h2>订单备注</h2><span>选填</span></div><el-input v-model="remark" type="textarea" :rows="3" maxlength="255" show-word-limit placeholder="例如：请放在前台、配送前电话联系等"/></section></main><aside class="checkout-total"><h2>费用明细</h2><div><span>商品总额</span><b>{{money(total)}}</b></div><div><span>配送费</span><b>¥5.00</b></div><div class="checkout-pay"><span>应付金额</span><strong>{{money(total+5)}}</strong></div><el-button type="primary" size="large" :loading="submitting" @click="submit">提交订单</el-button><p>本项目不接入真实支付；提交即视为模拟下单。</p></aside></div></div></template>
-<style scoped>.checkout-head{margin-bottom:21px}.eyebrow{color:#1677ff;font-size:11px;letter-spacing:2px;font-weight:700}.checkout-head h1{margin:6px 0;font-size:28px}.checkout-head p{margin:0;color:#7d8ca0;font-size:13px}.checkout-layout{display:grid;grid-template-columns:1fr 320px;gap:20px}.checkout-card,.checkout-total{background:#fff;border:1px solid #e6edf7;border-radius:15px;padding:20px;margin-bottom:17px}.card-title{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eef1f5;padding-bottom:13px;margin-bottom:12px}.card-title h2{font-size:16px;margin:0;display:flex;align-items:center;gap:6px}.card-title h2 .el-icon{color:#1677ff}.card-title span{font-size:12px;color:#8a98aa}.address-options{display:grid;gap:10px}.address-option{border:1px solid #e6edf7;border-radius:11px;padding:12px;cursor:pointer;display:flex;gap:10px;align-items:flex-start;transition:.2s}.address-option.active{border-color:#1677ff;background:#f4f9ff}.address-option input{margin-top:5px}.address-option b,.address-option small{display:block}.address-option b{font-size:13px}.address-option small{font-size:12px;color:#7b8a9c;line-height:1.6;margin-top:4px}.address-option em{font-size:11px;font-style:normal;color:#1677ff;background:#eaf4ff;border-radius:10px;padding:3px 6px;margin-left:auto}.address-empty{padding:18px;color:#7e8ea2;font-size:13px}.checkout-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #f0f3f6}.checkout-item:last-child{border:0}.checkout-image{width:48px;height:48px;border-radius:10px;background:#eaf5ff;overflow:hidden;display:grid;place-items:center;color:#1677ff}.checkout-image img{width:100%;height:100%;object-fit:cover}.checkout-item>div:nth-child(2){flex:1}.checkout-item h3{font-size:13px;margin:0 0 5px}.checkout-item p{font-size:12px;margin:0;color:#8390a2}.checkout-item strong{font-size:14px}.checkout-total{height:max-content;position:sticky;top:88px}.checkout-total h2{font-size:16px;margin:0 0 18px}.checkout-total>div{display:flex;justify-content:space-between;margin:13px 0;color:#708096;font-size:13px}.checkout-total b{color:#344054}.checkout-pay{border-top:1px dashed #dce5ee;padding-top:17px;margin-top:20px!important;align-items:end}.checkout-pay strong{font-size:25px;color:#ff6d2c}.checkout-total .el-button{width:100%;height:44px;border-radius:10px;margin-top:10px}.checkout-total p{font-size:11px;color:#8e9bae;line-height:1.6}@media(max-width:720px){.checkout-layout{grid-template-columns:1fr}.checkout-total{position:sticky;bottom:10px;top:auto;box-shadow:0 12px 25px rgba(0,45,99,.13)}}</style>
+
+<template>
+  <div class="page-container checkout-page">
+    <div class="page-head"><span class="eyebrow">CHECKOUT</span><h1>确认订单</h1><p>批次库存将在提交时按 FEFO 规则预占。</p></div>
+    <div class="checkout-grid">
+      <main>
+        <section class="panel"><h2>配送地址</h2><label v-for="a in addresses" :key="a.id" class="address"><input v-model="selectedAddressId" type="radio" :value="a.id"><span><b>{{a.receiverName}} {{a.receiverPhone}}</b><small>{{fullAddress(a)}}</small></span></label></section>
+        <section class="panel"><h2>商品清单</h2><div v-for="item in items" :key="item.cartItemId" class="line"><span>{{item.medicineName}} × {{item.quantity}} <el-tag v-if="item.prescriptionRequired" type="warning" size="small">处方药</el-tag></span><b>{{money(item.subtotalAmount)}}</b></div></section>
+        <section v-if="needsPrescription" class="panel"><h2>处方凭证</h2><p>只允许真实内容为 PDF、JPEG、PNG，最大 10 MB。</p><input type="file" accept="application/pdf,image/jpeg,image/png" @change="choosePrescription"><small>文件不在 Web 静态目录，仅本人和药师可鉴权查看。</small></section>
+        <section class="panel"><h2>订单备注</h2><el-input v-model="remark" type="textarea" :rows="3" maxlength="255" show-word-limit/></section>
+      </main>
+      <aside class="panel total"><h2>费用明细</h2><div><span>商品总额</span><b>{{money(total)}}</b></div><div><span>配送费</span><b>¥5.00</b></div><strong>{{money(total+5)}}</strong><el-button type="primary" size="large" :loading="submitting" @click="submit">提交订单</el-button><p>仅使用虚构数据与模拟支付。</p></aside>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.page-head{margin-bottom:20px}.eyebrow{color:#1677ff;font-size:11px;letter-spacing:2px}.checkout-grid{display:grid;grid-template-columns:1fr 320px;gap:20px}.panel{background:#fff;border:1px solid #e6edf7;border-radius:15px;padding:20px;margin-bottom:16px}.panel h2{font-size:16px;margin:0 0 16px}.address{display:flex;gap:10px;padding:12px;border:1px solid #edf1f6;border-radius:10px;margin-top:8px}.address span,.address small{display:block}.address small,.panel p,.panel>small{color:#7d8ca0;font-size:12px}.line,.total>div{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f3f6}.total{height:max-content;position:sticky;top:88px}.total>strong{display:block;color:#ff6d2c;font-size:26px;text-align:right;margin:20px 0}.total .el-button{width:100%}@media(max-width:720px){.checkout-grid{grid-template-columns:1fr}}
+</style>

@@ -15,6 +15,7 @@ import com.pharmacy.vo.CategoryVO;
 import com.pharmacy.vo.MedicineVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.cache.annotation.Cacheable;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -27,6 +28,7 @@ public class PublicMedicineServiceImpl implements PublicMedicineService {
     private final MedicineCategoryMapper categoryMapper;
 
     @Override
+    @Cacheable(value="catalogCategories",key="'enabled'")
     public List<CategoryVO> listEnabledCategories() {
         return categoryMapper.selectList(new LambdaQueryWrapper<MedicineCategory>()
                         .eq(MedicineCategory::getStatus, 1)
@@ -35,6 +37,7 @@ public class PublicMedicineServiceImpl implements PublicMedicineService {
     }
 
     @Override
+    @Cacheable(value="catalogPages",key="T(java.util.Objects).hash(#page,#size,#keyword,#categoryId,#sort)")
     public PageData<MedicineVO> pageMedicines(long page, long size, String keyword, Long categoryId, String sort) {
         Page<Medicine> pageObj = new Page<>(Math.max(page, 1), Math.min(Math.max(size, 1), 50));
         LambdaQueryWrapper<Medicine> q = new LambdaQueryWrapper<Medicine>()
@@ -51,6 +54,7 @@ public class PublicMedicineServiceImpl implements PublicMedicineService {
     }
 
     @Override
+    @Cacheable(value="catalogMedicine",key="#medicineId")
     public MedicineVO getMedicine(Long medicineId) {
         Medicine medicine = medicineMapper.selectById(medicineId);
         if (medicine == null || Integer.valueOf(0).equals(medicine.getStatus())) {
@@ -68,7 +72,7 @@ public class PublicMedicineServiceImpl implements PublicMedicineService {
 
     static MedicineVO toMedicineVO(Medicine m, MedicineCategory c) {
         boolean low = m.getStock() != null && m.getWarningStock() != null && m.getStock() <= m.getWarningStock();
-        return new MedicineVO(m.getId(), m.getCategoryId(), c == null ? "未分类" : c.getCategoryName(), m.getMedicineName(), m.getImageUrl(), m.getDescription(), m.getUsageInstruction(), m.getPrecautions(), m.getPrice(), m.getStock(), m.getWarningStock(), m.getStatus(), low, m.getCreateTime(), m.getUpdateTime());
+        return new MedicineVO(m.getId(), m.getCategoryId(), c == null ? "未分类" : c.getCategoryName(), m.getMedicineName(), m.getImageUrl(), m.getDescription(), m.getUsageInstruction(), m.getPrecautions(), m.getPrice(), m.getStock(), m.getWarningStock(), m.getPrescriptionRequired(), m.getStatus(), low, m.getCreateTime(), m.getUpdateTime());
     }
     static CategoryVO toCategoryVO(MedicineCategory c) { return new CategoryVO(c.getId(), c.getCategoryName(), c.getCategoryImage(), c.getDescription(), c.getSortNo(), c.getStatus(), c.getCreateTime(), c.getUpdateTime()); }
 }

@@ -1,0 +1,57 @@
+name: V2 quality gate
+
+on:
+  push:
+    branches: [main, codex/v2-enterprise-upgrade]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Start native infrastructure
+        run: |
+          sudo systemctl start mysql.service
+          sudo apt-get update -qq
+          sudo apt-get install -y redis-server rabbitmq-server
+          sudo systemctl start redis-server rabbitmq-server
+          sudo mysql -e "CREATE DATABASE pharmacy_delivery_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; CREATE USER 'pharmacy_ci'@'localhost' IDENTIFIED BY 'ci-only-password'; GRANT ALL ON pharmacy_delivery_ci.* TO 'pharmacy_ci'@'localhost';"
+      - name: Backend tests and coverage report
+        working-directory: backend
+        run: mvn --batch-mode verify
+      - name: Flyway and application startup smoke test
+        working-directory: backend
+        env:
+          DB_URL: jdbc:mysql://localhost:3306/pharmacy_delivery_ci?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+          DB_USERNAME: pharmacy_ci
+          DB_PASSWORD: ci-only-password
+          JWT_SECRET: ci-only-signing-key-with-at-least-thirty-two-bytes
+          MESSAGING_ENABLED: 'false'
+          SPRING_CACHE_TYPE: simple
+        run: |
+          java -jar target/pharmacy-delivery-backend-1.0.0.jar --server.port=18089 > /tmp/pharmacy.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for attempt in {1..30}; do curl --fail --silent http://localhost:18089/actuator/health && exit 0; sleep 2; done
+          cat /tmp/pharmacy.log
+          exit 1
+      - name: Frontend clean install, audit, and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm audit --audit-level=high
+          npm run build
+

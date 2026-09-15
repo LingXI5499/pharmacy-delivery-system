@@ -1,0 +1,6 @@
+<script setup lang="ts">
+import { onMounted,reactive,ref } from 'vue';import { ElMessage } from 'element-plus';import { procurementApi } from '@/api'
+const rows=ref<any[]>([]),form=reactive({supplierCode:'',supplierName:'',contactName:'',phone:''});const load=async()=>rows.value=await procurementApi.suppliers();onMounted(load);const save=async()=>{await procurementApi.addSupplier(form);ElMessage.success('供应商已创建');Object.assign(form,{supplierCode:'',supplierName:'',contactName:'',phone:''});await load()}
+</script>
+<template><div class="workbench"><h1>采购工作台</h1><p>供应商是采购单和收货链路的起点。</p><el-form :inline="true"><el-form-item label="编码"><el-input v-model="form.supplierCode"/></el-form-item><el-form-item label="名称"><el-input v-model="form.supplierName"/></el-form-item><el-form-item label="联系人"><el-input v-model="form.contactName"/></el-form-item><el-button type="primary" @click="save">新增供应商</el-button></el-form><el-table :data="rows"><el-table-column prop="supplierCode" label="编码"/><el-table-column prop="supplierName" label="名称"/><el-table-column prop="contactName" label="联系人"/><el-table-column prop="status" label="状态"/></el-table></div></template>
+<style scoped>.workbench{max-width:1100px;margin:40px auto;padding:24px;background:#fff;border-radius:16px}.workbench>p{color:#718198}</style>

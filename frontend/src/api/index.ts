@@ -1,12 +1,12 @@
 
-import http from './http'
+import http, { setAccessToken } from './http'
 import type { Address, Cart, Category, CategoryDistribution, DashboardSummary, HotMedicine, Medicine, Order, OrderDetail, PageData, Rider, TrendPoint, User } from '@/types'
 
 export const authApi = {
   register: (data: any) => http.post<any, User>('/auth/register', data),
-  login: (data: any) => http.post<any, {user: User; redirectPath: string}>('/auth/login', data),
+  login: async (data: any) => { const result = await http.post<any, {accessToken:string;expiresIn:number;user:User;redirectPath:string}>('/auth/login', data); setAccessToken(result.accessToken); return result },
   me: () => http.get<any, User>('/auth/me', { silent: true } as any),
-  logout: () => http.post<any, void>('/auth/logout')
+  logout: async () => { try { return await http.post<any, void>('/auth/logout') } finally { setAccessToken(null) } }
 }
 export const publicApi = {
   categories: () => http.get<any, Category[]>('/public/categories'),
@@ -29,7 +29,7 @@ export const addressApi = {
   setDefault: (id:number) => http.patch<any,void>(`/user/addresses/${id}/default`)
 }
 export const orderApi = {
-  create: (data:any) => http.post<any,{orderId:number;orderNo:string;orderStatus:string;orderAmount:number}>('/user/orders',data),
+  create: (data:any, key=crypto.randomUUID()) => http.post<any,{orderId:number;orderNo:string;orderStatus:string;orderAmount:number}>('/user/orders',data,{headers:{'Idempotency-Key':key}}),
   page: (params:any) => http.get<any,PageData<Order>>('/user/orders',{params}),
   detail: (id:number) => http.get<any,OrderDetail>(`/user/orders/${id}`),
   cancel: (id:number, reason:string) => http.post<any,void>(`/user/orders/${id}/cancel`,{reason})
@@ -54,4 +54,14 @@ export const adminOrderApi = {
 export const riderApi = {
   page:(params:any)=>http.get<any,PageData<Rider>>('/admin/riders',{params}), available:()=>http.get<any,Rider[]>('/admin/riders/available'), add:(data:any)=>http.post<any,Rider>('/admin/riders',data), update:(id:number,data:any)=>http.put<any,Rider>(`/admin/riders/${id}`,data), remove:(id:number)=>http.delete<any,void>(`/admin/riders/${id}`), status:(id:number,status:number)=>http.patch<any,void>(`/admin/riders/${id}/status`,{status})
 }
-export const adminUserApi = { page:(params:any)=>http.get<any,PageData<User>>('/admin/users',{params}), status:(id:number,status:number)=>http.patch<any,void>(`/admin/users/${id}/status`,{status}) }
+export const adminUserApi = { page:(params:any)=>http.get<any,PageData<User>>('/admin/users',{params}), status:(id:number,status:number)=>http.patch<any,void>(`/admin/users/${id}/status`,{status}), role:(id:number,role:string)=>http.patch<any,void>(`/admin/users/${id}/role`,{role}) }
+
+export const prescriptionApi = {
+  upload: (file:File,medicineIds:number[],quantities:number[]) => { const body=new FormData();body.append('file',file);medicineIds.forEach(x=>body.append('medicineIds',String(x)));quantities.forEach(x=>body.append('quantities',String(x)));return http.post<any,any>('/user/prescriptions',body) },
+  pending: () => http.get<any,any[]>('/pharmacist/prescriptions'),
+  file: (id:number) => http.get<any,Blob>(`/pharmacist/prescriptions/${id}/file`,{responseType:'blob'}),
+  review: (id:number,approved:boolean,reason='') => http.post<any,void>(`/pharmacist/prescriptions/${id}/review`,{approved,reason})
+}
+export const paymentApi = { create:(orderId:number)=>http.post<any,any>(`/user/orders/${orderId}/payments`), callback:(paymentNo:string,success=true)=>http.post<any,void>('/user/mock-payments/callback',{paymentNo,callbackKey:crypto.randomUUID(),success}) }
+export const procurementApi = { suppliers:()=>http.get<any,any[]>('/purchaser/suppliers'), addSupplier:(data:any)=>http.post<any,any>('/purchaser/suppliers',data), createOrder:(data:any)=>http.post<any,any>('/purchaser/purchase-orders',data), receive:(data:any)=>http.post<any,any>('/warehouse/purchase-receipts',data) }
+export const inventoryApi = { batches:(params:any={})=>http.get<any,any[]>('/warehouse/inventory/batches',{params}), ledger:(params:any={})=>http.get<any,any[]>('/warehouse/inventory/ledger',{params}), adjust:(batchId:number,data:{adjustType:string;quantity:number;reason:string})=>http.patch<any,void>(`/warehouse/inventory/batches/${batchId}/stock`,data) }

@@ -31,9 +31,9 @@ public class DashboardServiceImpl implements DashboardService {
         List<PharmacyOrder> today=orderMapper.selectList(new LambdaQueryWrapper<PharmacyOrder>().ge(PharmacyOrder::getCreateTime,start));
         BigDecimal sales=today.stream().filter(o->o.getOrderStatus()==OrderStatus.COMPLETED).map(PharmacyOrder::getOrderAmount).reduce(BigDecimal.ZERO,BigDecimal::add);
         return new DashboardSummaryVO(today.size(),sales,
-                countStatus(today,OrderStatus.PENDING_ACCEPT)+countStatus(today,OrderStatus.TO_PACK)+countStatus(today,OrderStatus.TO_DISPATCH)+countStatus(today,OrderStatus.DELIVERING),
+                countStatus(today,OrderStatus.PENDING_REVIEW)+countStatus(today,OrderStatus.PENDING_PAYMENT)+countStatus(today,OrderStatus.PENDING_ACCEPT)+countStatus(today,OrderStatus.TO_PACK)+countStatus(today,OrderStatus.TO_DISPATCH)+countStatus(today,OrderStatus.DELIVERING)+countStatus(today,OrderStatus.REFUNDING),
                 medicineMapper.selectCount(new LambdaQueryWrapper<Medicine>().gt(Medicine::getStock,0).apply("stock <= warning_stock")),
-                countStatus(today,OrderStatus.PENDING_ACCEPT),countStatus(today,OrderStatus.TO_PACK),countStatus(today,OrderStatus.TO_DISPATCH),countStatus(today,OrderStatus.DELIVERING),countStatus(today,OrderStatus.COMPLETED));
+                countStatus(today,OrderStatus.PENDING_REVIEW)+countStatus(today,OrderStatus.PENDING_PAYMENT)+countStatus(today,OrderStatus.PENDING_ACCEPT),countStatus(today,OrderStatus.TO_PACK),countStatus(today,OrderStatus.TO_DISPATCH),countStatus(today,OrderStatus.DELIVERING),countStatus(today,OrderStatus.COMPLETED));
     }
     @Override public List<TrendPointVO> orderTrend(int days){return trend(days,false);}
     @Override public List<TrendPointVO> salesTrend(int days){return trend(days,true);}

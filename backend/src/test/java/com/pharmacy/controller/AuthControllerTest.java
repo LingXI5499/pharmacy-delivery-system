@@ -1,208 +1,43 @@
 package com.pharmacy.controller;
 
-import com.pharmacy.PharmacyDeliveryApplication;
-import com.pharmacy.dto.LoginRequest;
-import com.pharmacy.dto.RegisterRequest;
-import com.pharmacy.entity.SysUser;
+import com.pharmacy.common.ErrorCode;
 import com.pharmacy.enums.UserRole;
-import com.pharmacy.mapper.SysUserMapper;
-import com.pharmacy.util.SessionUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.HttpSession;
+import com.pharmacy.exception.BusinessException;
+import com.pharmacy.exception.GlobalExceptionHandler;
+import com.pharmacy.security.AuthenticatedUser;
+import com.pharmacy.service.AuthService;
+import com.pharmacy.vo.AuthTokensVO;
+import com.pharmacy.vo.UserVO;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-
-import static org.hamcrest.Matchers.*;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import java.time.Duration;
+import java.util.List;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(classes = PharmacyDeliveryApplication.class)
-@AutoConfigureMockMvc
 class AuthControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    private SysUserMapper userMapper;
-
-    private MockHttpSession session;
-
-    @BeforeEach
-    void setUp() {
-        session = new MockHttpSession();
-    }
-
-    @Test
-    @DisplayName("注册 - 成功注册新用户")
-    void register_shouldSucceed_whenValidRequest() throws Exception {
-        String username = "test_register_" + System.currentTimeMillis();
-        RegisterRequest request = new RegisterRequest();
-        request.setUsername(username);
-        request.setPassword("123456");
-        request.setNickname("测试用户");
-        request.setPhone("13900000000");
-
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.message").value("注册成功"))
-                .andExpect(jsonPath("$.data.username").value(username))
-                .andExpect(jsonPath("$.data.nickname").value("测试用户"))
-                .andExpect(jsonPath("$.data.role").value("USER"));
-
-        SysUser user = userMapper.selectOne(com.baomidou.mybatisplus.core.toolkit.Wrappers.<SysUser>lambdaQuery()
-                .eq(SysUser::getUsername, username));
-        assertNotNull(user);
-        assertEquals("123456", user.getPassword());
-    }
-
-    @Test
-    @DisplayName("注册 - 失败当用户名已存在")
-    void register_shouldFail_whenUsernameExists() throws Exception {
-        RegisterRequest request = new RegisterRequest();
-        request.setUsername("admin");
-        request.setPassword("123456");
-        request.setNickname("测试");
-
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(40002))
-                .andExpect(jsonPath("$.message").value("该账号已被注册"));
-    }
-
-    @Test
-    @DisplayName("注册 - 失败当缺少必填字段")
-    void register_shouldFail_whenMissingRequiredFields() throws Exception {
-        RegisterRequest request = new RegisterRequest();
-        request.setUsername("");
-        request.setPassword("");
-
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    @DisplayName("登录 - 成功登录")
-    void login_shouldSucceed_whenValidCredentials() throws Exception {
-        LoginRequest request = new LoginRequest();
-        request.setUsername("admin");
-        request.setPassword("123456");
-
-        MvcResult result = mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request))
-                        .session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.message").value("登录成功"))
-                .andExpect(jsonPath("$.data.user.username").value("admin"))
-                .andExpect(jsonPath("$.data.user.role").value("ADMIN"))
-                .andExpect(jsonPath("$.data.redirectPath").value("/admin/dashboard"))
-                .andReturn();
-
-        assertNotNull(session.getAttribute(SessionUtil.LOGIN_USER));
-    }
-
-    @Test
-    @DisplayName("登录 - 失败当密码错误")
-    void login_shouldFail_whenWrongPassword() throws Exception {
-        LoginRequest request = new LoginRequest();
-        request.setUsername("admin");
-        request.setPassword("wrong");
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request))
-                        .session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(40003))
-                .andExpect(jsonPath("$.message").value("账号或密码错误"));
-    }
-
-    @Test
-    @DisplayName("登录 - 失败当用户不存在")
-    void login_shouldFail_whenUserNotExists() throws Exception {
-        LoginRequest request = new LoginRequest();
-        request.setUsername("nonexistent");
-        request.setPassword("123456");
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request))
-                        .session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(40003))
-                .andExpect(jsonPath("$.message").value("账号或密码错误"));
-    }
-
-    @Test
-    @DisplayName("获取用户信息 - 成功当已登录")
-    void me_shouldReturnUser_whenLoggedIn() throws Exception {
-        LoginRequest loginRequest = new LoginRequest();
-        loginRequest.setUsername("admin");
-        loginRequest.setPassword("123456");
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginRequest))
-                        .session(session));
-
-        mockMvc.perform(get("/api/auth/me")
-                        .session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.username").value("admin"));
-    }
-
-    @Test
-    @DisplayName("获取用户信息 - 返回null当未登录")
-    void me_shouldReturnNull_whenNotLoggedIn() throws Exception {
-        mockMvc.perform(get("/api/auth/me")
-                        .session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data").doesNotExist());
-    }
-
-    @Test
-    @DisplayName("登出 - 成功")
-    void logout_shouldSucceed() throws Exception {
-        LoginRequest loginRequest = new LoginRequest();
-        loginRequest.setUsername("admin");
-        loginRequest.setPassword("123456");
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginRequest))
-                        .session(session));
-
-        assertNotNull(session.getAttribute(SessionUtil.LOGIN_USER));
-
-        mockMvc.perform(post("/api/auth/logout")
-                        .session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0));
-
-        assertTrue(session.isInvalid());
-    }
+    private AuthService service; private MockMvc mvc;
+    private final UserVO user=new UserVO(1L,"admin","管理员",null,UserRole.ADMIN,1);
+    @BeforeEach void setup(){service=mock(AuthService.class);AuthController c=new AuthController(service);ReflectionTestUtils.setField(c,"refreshTtl",Duration.ofDays(7));ReflectionTestUtils.setField(c,"secureCookie",false);mvc=MockMvcBuilders.standaloneSetup(c).setControllerAdvice(new GlobalExceptionHandler()).build();SecurityContextHolder.clearContext();}
+    @Test void register()throws Exception{when(service.register(any())).thenReturn(user);perform(post("/api/auth/register"),"{\"username\":\"user123\",\"password\":\"123456\",\"nickname\":\"测试\"}").andExpect(status().isOk()).andExpect(jsonPath("$.data.username").value("admin"));}
+    @Test void registerDuplicate()throws Exception{when(service.register(any())).thenThrow(new BusinessException(ErrorCode.USERNAME_EXISTS,"该账号已被注册"));perform(post("/api/auth/register"),"{\"username\":\"user123\",\"password\":\"123456\",\"nickname\":\"测试\"}").andExpect(jsonPath("$.code").value(ErrorCode.USERNAME_EXISTS));}
+    @Test void registerValidation()throws Exception{perform(post("/api/auth/register"),"{}").andExpect(status().isBadRequest());}
+    @Test void loginSetsHttpOnlyCookie()throws Exception{when(service.login(any(),any(),any())).thenReturn(tokens());perform(post("/api/auth/login"),"{\"username\":\"admin\",\"password\":\"123456\"}").andExpect(header().string("Set-Cookie",org.hamcrest.Matchers.containsString("HttpOnly"))).andExpect(jsonPath("$.data.refreshToken").doesNotExist());}
+    @Test void loginValidation()throws Exception{perform(post("/api/auth/login"),"{}").andExpect(status().isBadRequest());}
+    @Test void refreshRotatesCookie()throws Exception{when(service.refresh(eq("old"),any(),any())).thenReturn(tokens());mvc.perform(post("/api/auth/refresh").cookie(new jakarta.servlet.http.Cookie("refresh_token","old"))).andExpect(status().isOk()).andExpect(header().string("Set-Cookie",org.hamcrest.Matchers.containsString("new-refresh")));}
+    @Test void meUsesPrincipal()throws Exception{authenticate();when(service.me(any())).thenReturn(user);mvc.perform(get("/api/auth/me")).andExpect(jsonPath("$.data.role").value("ADMIN"));}
+    @Test void logoutClearsCookie()throws Exception{mvc.perform(post("/api/auth/logout").header("Authorization","Bearer access").cookie(new jakarta.servlet.http.Cookie("refresh_token","refresh"))).andExpect(status().isOk()).andExpect(header().string("Set-Cookie",org.hamcrest.Matchers.containsString("Max-Age=0")));verify(service).logout("access","refresh");}
+    @Test void loginUsesForwardedClientIp()throws Exception{when(service.login(any(),any(),any())).thenReturn(tokens());perform(post("/api/auth/login").header("X-Forwarded-For","203.0.113.8, 10.0.0.1"),"{\"username\":\"admin\",\"password\":\"123456\"}");verify(service).login(any(),any(),eq("203.0.113.8"));}
+    private AuthTokensVO tokens(){return new AuthTokensVO("access",900,user,"/admin/dashboard","new-refresh");}
+    private void authenticate(){AuthenticatedUser p=new AuthenticatedUser(1L,"admin","管理员",UserRole.ADMIN);SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(p,null,List.of()));}
+    private org.springframework.test.web.servlet.ResultActions perform(MockHttpServletRequestBuilder r,String body)throws Exception{return mvc.perform(r.contentType(MediaType.APPLICATION_JSON).content(body));}
 }

@@ -24,6 +24,7 @@ public class Medicine {
     private BigDecimal price;
     private Integer stock;
     private Integer warningStock;
+    private Integer prescriptionRequired;
     private Integer status;
     @Version
     private Integer version;

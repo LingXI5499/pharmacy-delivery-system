@@ -32,4 +32,3 @@ stateDiagram-v2
 ## 明确的岗位差距
 
 本项目不实现 Spring Cloud、Kubernetes、Elasticsearch 或伪造亿级流量。Java/JVM、操作系统、网络、算法题仍须独立学习；架构内容不能替代实习和真实团队经验。
-

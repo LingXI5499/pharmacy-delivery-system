@@ -20,4 +20,3 @@ StandardError=append:/var/log/pharmacy/application.log
 
 [Install]
 WantedBy=multi-user.target
-

@@ -31,6 +31,13 @@ jobs:
           MYSQL_PWD=root mysql --user=root -e "CREATE DATABASE pharmacy_delivery_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; CREATE USER 'pharmacy_ci'@'localhost' IDENTIFIED BY 'ci-only-password'; GRANT ALL ON pharmacy_delivery_ci.* TO 'pharmacy_ci'@'localhost';"
       - name: Backend tests and coverage report
         working-directory: backend
+        env:
+          DB_URL: jdbc:mysql://localhost:3306/pharmacy_delivery_ci?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+          DB_USERNAME: pharmacy_ci
+          DB_PASSWORD: ci-only-password
+          JWT_SECRET: ci-only-signing-key-with-at-least-thirty-two-bytes
+          MESSAGING_ENABLED: 'false'
+          SPRING_CACHE_TYPE: simple
         run: mvn --batch-mode verify
       - name: Flyway and application startup smoke test
         working-directory: backend
@@ -47,6 +54,22 @@ jobs:
           trap 'kill $APP_PID || true' EXIT
           for attempt in {1..30}; do curl --fail --silent http://localhost:18089/actuator/health && exit 0; sleep 2; done
           cat /tmp/pharmacy.log
+          exit 1
+      - name: Upgrade current V1 sample database in place
+        env:
+          DB_URL: jdbc:mysql://localhost:3306/pharmacy_delivery?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+          DB_USERNAME: root
+          DB_PASSWORD: root
+          JWT_SECRET: ci-only-signing-key-with-at-least-thirty-two-bytes
+          MESSAGING_ENABLED: 'false'
+          SPRING_CACHE_TYPE: simple
+        run: |
+          MYSQL_PWD=root mysql --user=root < database/pharmacy_delivery.sql
+          java -jar backend/target/pharmacy-delivery-backend-1.0.0.jar --server.port=18090 > /tmp/pharmacy-upgrade.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for attempt in {1..30}; do curl --fail --silent http://localhost:18090/actuator/health && exit 0; sleep 2; done
+          cat /tmp/pharmacy-upgrade.log
           exit 1
       - name: Frontend clean install, audit, and build
         working-directory: frontend

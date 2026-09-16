@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Set;
 
@@ -80,13 +81,16 @@ public class RefundService {
     }
 
     @Transactional
-    public void callback(String refundNo, String callbackKey, boolean success) {
+    public void callback(String refundNo, String callbackKey, boolean success, BigDecimal amount) {
         if (callbackKey == null || callbackKey.isBlank() || callbackKey.length() > 80) {
             throw new BusinessException(ErrorCode.PARAM_INVALID, "callbackKey 不合法");
         }
         RefundRecord refund = refunds.lockByNo(refundNo);
         if (refund == null) throw new BusinessException(ErrorCode.NOT_FOUND, "退款记录不存在");
         if (!"PENDING".equals(refund.getStatus())) return;
+        if (success && (amount == null || refund.getAmount().compareTo(amount) != 0)) {
+            throw new BusinessException(ErrorCode.PARAM_INVALID, "退款金额不一致");
+        }
         PharmacyOrder order = orders.lockById(refund.getOrderId());
         refund.setCallbackKey(callbackKey);
         refund.setStatus(success ? "SUCCESS" : "FAILED");

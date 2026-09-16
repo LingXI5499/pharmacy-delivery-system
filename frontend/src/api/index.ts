@@ -62,6 +62,15 @@ export const prescriptionApi = {
   file: (id:number) => http.get<any,Blob>(`/pharmacist/prescriptions/${id}/file`,{responseType:'blob'}),
   review: (id:number,approved:boolean,reason='') => http.post<any,void>(`/pharmacist/prescriptions/${id}/review`,{approved,reason})
 }
-export const paymentApi = { create:(orderId:number)=>http.post<any,any>(`/user/orders/${orderId}/payments`), callback:(paymentNo:string,success=true)=>http.post<any,void>('/user/mock-payments/callback',{paymentNo,callbackKey:crypto.randomUUID(),success}) }
+export const paymentApi = {
+  create: (orderId: number) => http.post<any, any>(`/user/orders/${orderId}/payments`),
+  callback: (paymentNo: string, amount: number, success = true) =>
+    http.post<any, void>('/user/mock-payments/callback', {
+      paymentNo,
+      callbackKey: crypto.randomUUID(),
+      success,
+      amount
+    })
+}
 export const procurementApi = { suppliers:()=>http.get<any,any[]>('/purchaser/suppliers'), addSupplier:(data:any)=>http.post<any,any>('/purchaser/suppliers',data), createOrder:(data:any)=>http.post<any,any>('/purchaser/purchase-orders',data), receive:(data:any)=>http.post<any,any>('/warehouse/purchase-receipts',data) }
 export const inventoryApi = { batches:(params:any={})=>http.get<any,any[]>('/warehouse/inventory/batches',{params}), ledger:(params:any={})=>http.get<any,any[]>('/warehouse/inventory/ledger',{params}), adjust:(batchId:number,data:{adjustType:string;quantity:number;reason:string})=>http.patch<any,void>(`/warehouse/inventory/batches/${batchId}/stock`,data) }

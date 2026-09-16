@@ -85,12 +85,12 @@ copy_migrations 4
 start_app
 mysql_seed
 stop_app
-"${ROOT}/performance/scripts/capture-explain.sh" before
-"${ROOT}/performance/scripts/assert-reconcile.sh"
+bash "${ROOT}/performance/scripts/capture-explain.sh" before
+bash "${ROOT}/performance/scripts/assert-reconcile.sh"
 
 copy_migrations 5
 start_app
-"${ROOT}/performance/scripts/capture-explain.sh" after
+bash "${ROOT}/performance/scripts/capture-explain.sh" after
 
 if [[ "${MODE}" == "full" ]]; then
   set +e
@@ -107,7 +107,7 @@ if [[ "${MODE}" == "full" ]]; then
     exit "${k6_status}"
   fi
   echo "${k6_status}" > "${OUT_DIR}/k6-exit-code.txt"
-  "${ROOT}/performance/scripts/assert-reconcile.sh"
+  bash "${ROOT}/performance/scripts/assert-reconcile.sh"
   python3 "${ROOT}/performance/scripts/summarize.py" "${OUT_DIR}/k6-summary.json" "${OUT_DIR}/p1-report.md"
 else
   python3 "${ROOT}/performance/scripts/summarize.py" NONE "${OUT_DIR}/p1-report.md"

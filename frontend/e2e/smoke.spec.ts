@@ -40,3 +40,9 @@ test('purchaser cannot access warehouse workbench', async ({ page }) => {
   await page.goto('/warehouse')
   await expect(page).toHaveURL(/\/home$/)
 })
+
+test('user cannot access admin dashboard', async ({ page }) => {
+  await loginViaUi(page, 'e1_user', 'test123456', /\/home$/)
+  await page.goto('/admin/dashboard')
+  await expect(page).toHaveURL(/\/home$/)
+})

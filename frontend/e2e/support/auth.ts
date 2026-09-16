@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type APIRequestContext, type Page } from '@playwright/test'
 
 export async function loginViaUi(page: Page, username: string, password: string, expectedPath: RegExp) {
   await page.goto('/login')
@@ -16,4 +16,33 @@ export async function loginViaUi(page: Page, username: string, password: string,
   expect(body.code, body.message || 'login failed').toBe(0)
 
   await expect(page).toHaveURL(expectedPath)
+}
+
+export async function apiLogin(request: APIRequestContext, username: string, password: string) {
+  const response = await request.post('/api/auth/login', {
+    data: { username, password }
+  })
+  const body = await response.json()
+  expect(response.ok(), `login HTTP status ${response.status()}`).toBeTruthy()
+  expect(body.code, body.message || 'api login failed').toBe(0)
+  expect(body.data?.accessToken).toBeTruthy()
+  return body.data.accessToken as string
+}
+
+export async function apiJson<T>(
+  request: APIRequestContext,
+  token: string,
+  method: 'GET' | 'POST',
+  url: string,
+  data?: unknown
+): Promise<T> {
+  const response = await request.fetch(url, {
+    method,
+    headers: { Authorization: `Bearer ${token}` },
+    data
+  })
+  const body = await response.json()
+  expect(response.ok(), `${method} ${url} HTTP ${response.status()}`).toBeTruthy()
+  expect(body.code, body.message || `${method} ${url} failed`).toBe(0)
+  return body.data as T
 }

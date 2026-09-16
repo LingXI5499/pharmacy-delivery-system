@@ -70,6 +70,30 @@ INSERT INTO medicine (
   '遵医嘱使用',
   '仅供虚构测试数据使用',
   29.90, 3, 1, 1, 1, 0, 0
+),
+(
+  (SELECT id FROM medicine_category WHERE category_name = 'E1 常规用药'),
+  'E1 FEFO 维生素C',
+  'E1 跨批次 FEFO 扣减测试药',
+  '按说明书使用',
+  '仅供虚构测试数据使用',
+  18.00, 6, 2, 0, 1, 0, 0
+),
+(
+  (SELECT id FROM medicine_category WHERE category_name = 'E1 常规用药'),
+  'E1 TIMEOUT 口罩',
+  'E1 支付超时关单测试药',
+  '按说明书使用',
+  '仅供虚构测试数据使用',
+  9.90, 1, 1, 0, 1, 0, 0
+),
+(
+  (SELECT id FROM medicine_category WHERE category_name = 'E1 常规用药'),
+  'E1 REFUND 碘伏',
+  'E1 未发货退款回补测试药',
+  '按说明书使用',
+  '仅供虚构测试数据使用',
+  15.00, 2, 1, 0, 1, 0, 0
 );
 
 INSERT INTO medicine_batch (
@@ -102,6 +126,42 @@ INSERT INTO medicine_batch (
   DATE_ADD(CURRENT_DATE, INTERVAL 240 DAY),
   12.50,
   3, 0, 'QUALIFIED', 1, 0
+),
+(
+  (SELECT id FROM medicine WHERE medicine_name = 'E1 FEFO 维生素C'),
+  (SELECT id FROM inventory_location WHERE location_code = 'MAIN'),
+  'E1-FEFO-EARLY',
+  DATE_SUB(CURRENT_DATE, INTERVAL 200 DAY),
+  DATE_ADD(CURRENT_DATE, INTERVAL 20 DAY),
+  4.20,
+  2, 0, 'QUALIFIED', 1, 0
+),
+(
+  (SELECT id FROM medicine WHERE medicine_name = 'E1 FEFO 维生素C'),
+  (SELECT id FROM inventory_location WHERE location_code = 'MAIN'),
+  'E1-FEFO-LATE',
+  DATE_SUB(CURRENT_DATE, INTERVAL 60 DAY),
+  DATE_ADD(CURRENT_DATE, INTERVAL 180 DAY),
+  4.50,
+  4, 0, 'QUALIFIED', 1, 0
+),
+(
+  (SELECT id FROM medicine WHERE medicine_name = 'E1 TIMEOUT 口罩'),
+  (SELECT id FROM inventory_location WHERE location_code = 'MAIN'),
+  'E1-TIMEOUT-001',
+  DATE_SUB(CURRENT_DATE, INTERVAL 30 DAY),
+  DATE_ADD(CURRENT_DATE, INTERVAL 300 DAY),
+  3.00,
+  1, 0, 'QUALIFIED', 1, 0
+),
+(
+  (SELECT id FROM medicine WHERE medicine_name = 'E1 REFUND 碘伏'),
+  (SELECT id FROM inventory_location WHERE location_code = 'MAIN'),
+  'E1-REFUND-001',
+  DATE_SUB(CURRENT_DATE, INTERVAL 40 DAY),
+  DATE_ADD(CURRENT_DATE, INTERVAL 360 DAY),
+  5.50,
+  2, 0, 'QUALIFIED', 1, 0
 );
 
 INSERT INTO supplier (supplier_code, supplier_name, contact_name, phone, status) VALUES

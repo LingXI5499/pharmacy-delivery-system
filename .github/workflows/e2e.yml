@@ -6,6 +6,7 @@ on:
     paths:
       - 'frontend/**'
       - '.github/workflows/e2e.yml'
+      - 'backend/src/main/java/com/pharmacy/messaging/**'
   workflow_dispatch:
 
 jobs:
@@ -38,7 +39,7 @@ jobs:
           DB_USERNAME: pharmacy_e2e
           DB_PASSWORD: e2e-only-password
           JWT_SECRET: e2e-only-signing-key-with-at-least-thirty-two-bytes
-          MESSAGING_ENABLED: 'false'
+          MESSAGING_ENABLED: 'true'
           SPRING_CACHE_TYPE: simple
         run: mvn --batch-mode -DskipTests package
       - name: Start backend for E2E
@@ -48,10 +49,13 @@ jobs:
           DB_USERNAME: pharmacy_e2e
           DB_PASSWORD: e2e-only-password
           JWT_SECRET: e2e-only-signing-key-with-at-least-thirty-two-bytes
-          MESSAGING_ENABLED: 'false'
+          MESSAGING_ENABLED: 'true'
           SPRING_CACHE_TYPE: simple
           PRESCRIPTION_STORAGE_PATH: /tmp/pharmacy-e2e-prescriptions
           APP_CORS_ALLOWED_ORIGIN: http://127.0.0.1:4173
+          APP_ORDER_PAYMENT_TIMEOUT: 20s
+          EVENT_REPLAY_INTERVAL_MS: '5000'
+          EVENT_REPLAY_INITIAL_DELAY_MS: '5000'
         run: |
           java -jar target/pharmacy-delivery-backend-1.0.0.jar --server.port=8089 > /tmp/pharmacy-e2e.log 2>&1 &
           echo $! > /tmp/pharmacy-e2e.pid

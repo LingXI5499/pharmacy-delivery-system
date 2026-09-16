@@ -13,7 +13,7 @@ const businessOk = new Rate('business_ok')
 const ordersCreated = new Counter('orders_created')
 
 export const options = {
-  setupTimeout: '3m',
+  setupTimeout: '8m',
   scenarios: {
     mixed: {
       executor: 'constant-vus',
@@ -75,6 +75,7 @@ export function setup() {
   for (let index = 1; index <= USER_COUNT; index += 1) {
     const username = `p1_user_${String(index).padStart(3, '0')}`
     users.push(loginUser(username))
+    sleep(3.5)
   }
   return { hotMedicineId: match.id, users }
 }

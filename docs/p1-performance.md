@@ -28,7 +28,7 @@
 - 不新增业务 API，不改订单状态机。
 - 仅允许新增 `V5__performance_indexes.sql`。V1～V4 只读。
 - `medicine.stock` 仍是可售批次聚合读模型；索引不得改写 FEFO 顺序 `expiry_date ASC, id ASC`。
-- 目录缓存仍可降级；压测默认使用 Redis，SQL 证据来自 `EXPLAIN ANALYZE`，不把缓存命中写成数据库已优化。
+- 目录压测使用 `SPRING_CACHE_TYPE=simple`，避免把 Redis 命中写成 SQL 已优化。登录受现有 20 次/分/IP 限流，setup 间隔 3.5s 预登录 100 个用户。
 - 性能工作流关闭 `MESSAGING_ENABLED`，避免 Publisher Confirm 的 10 秒等待污染 HTTP p95；订单与库存正确性仍以 MySQL 对账为准，不代表生产消息路径已压过。
 
 ## 3. 拒绝的失败方案

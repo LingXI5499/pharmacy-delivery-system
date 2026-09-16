@@ -73,4 +73,16 @@ export const paymentApi = {
     })
 }
 export const procurementApi = { suppliers:()=>http.get<any,any[]>('/purchaser/suppliers'), addSupplier:(data:any)=>http.post<any,any>('/purchaser/suppliers',data), createOrder:(data:any)=>http.post<any,any>('/purchaser/purchase-orders',data), receive:(data:any)=>http.post<any,any>('/warehouse/purchase-receipts',data) }
-export const inventoryApi = { batches:(params:any={})=>http.get<any,any[]>('/warehouse/inventory/batches',{params}), ledger:(params:any={})=>http.get<any,any[]>('/warehouse/inventory/ledger',{params}), adjust:(batchId:number,data:{adjustType:string;quantity:number;reason:string})=>http.patch<any,void>(`/warehouse/inventory/batches/${batchId}/stock`,data) }
+export const inventoryApi = {
+  batches:(params:any={})=>http.get<any,any[]>('/warehouse/inventory/batches',{params}),
+  ledger:(params:any={})=>http.get<any,any[]>('/warehouse/inventory/ledger',{params}),
+  adjust:(batchId:number,data:{adjustType:string;quantity:number;reason:string})=>http.patch<any,void>(`/warehouse/inventory/batches/${batchId}/stock`,data),
+  reconciliation:()=>http.get<any,any[]>('/warehouse/inventory/reconciliation'),
+  counts:(params:any={})=>http.get<any,any[]>('/warehouse/inventory/counts',{params}),
+  countDetail:(id:number)=>http.get<any,any>(`/warehouse/inventory/counts/${id}`),
+  createCount:(data:any={})=>http.post<any,any>('/warehouse/inventory/counts',data),
+  startCount:(id:number)=>http.post<any,void>(`/warehouse/inventory/counts/${id}/start`),
+  upsertCountItem:(id:number,data:{batchId:number;countedQty:number;reason:string})=>http.put<any,any>(`/warehouse/inventory/counts/${id}/items`,data),
+  completeCount:(id:number)=>http.post<any,void>(`/warehouse/inventory/counts/${id}/complete`),
+  cancelCount:(id:number)=>http.post<any,void>(`/warehouse/inventory/counts/${id}/cancel`)
+}

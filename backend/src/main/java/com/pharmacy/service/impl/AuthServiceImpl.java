@@ -12,6 +12,7 @@ import com.pharmacy.mapper.RefreshTokenMapper;
 import com.pharmacy.mapper.SysUserMapper;
 import com.pharmacy.security.AuthenticatedUser;
 import com.pharmacy.security.JwtService;
+import com.pharmacy.security.RefreshTokenFamilyGuard;
 import com.pharmacy.service.AuthService;
 import com.pharmacy.vo.AuthTokensVO;
 import com.pharmacy.vo.UserVO;
@@ -37,6 +38,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenMapper refreshTokenMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshTokenFamilyGuard refreshTokenFamilyGuard;
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Value("${app.security.refresh-token-ttl}")
@@ -88,7 +90,8 @@ public class AuthServiceImpl implements AuthService {
         if (stored == null) throw new BusinessException(ErrorCode.UNAUTHORIZED, "刷新令牌无效");
         LocalDateTime now = LocalDateTime.now();
         if (stored.getRevokedAt() != null) {
-            refreshTokenMapper.revokeFamily(stored.getFamilyId(), now);
+            // REQUIRES_NEW: must survive the BusinessException rollback of this method.
+            refreshTokenFamilyGuard.revokeFamilyCommitted(stored.getFamilyId());
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "检测到刷新令牌重放，当前登录已撤销");
         }
         if (!stored.getExpiresAt().isAfter(now)) {
@@ -98,7 +101,7 @@ public class AuthServiceImpl implements AuthService {
         }
         SysUser user = userMapper.selectById(stored.getUserId());
         if (user == null || !Integer.valueOf(1).equals(user.getStatus())) {
-            refreshTokenMapper.revokeFamily(stored.getFamilyId(), now);
+            refreshTokenFamilyGuard.revokeFamilyCommitted(stored.getFamilyId());
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "账号不可用");
         }
         AuthTokensVO next = issue(user, stored.getFamilyId(), userAgent, ipAddress);

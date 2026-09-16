@@ -10,6 +10,7 @@ import com.pharmacy.exception.BusinessException;
 import com.pharmacy.mapper.RefreshTokenMapper;
 import com.pharmacy.mapper.SysUserMapper;
 import com.pharmacy.security.JwtService;
+import com.pharmacy.security.RefreshTokenFamilyGuard;
 import com.pharmacy.service.impl.AuthServiceImpl;
 import com.pharmacy.vo.AuthTokensVO;
 import com.pharmacy.vo.UserVO;
@@ -45,6 +46,7 @@ class AuthServiceImplTest {
     @Mock private RefreshTokenMapper refreshTokenMapper;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtService jwtService;
+    @Mock private RefreshTokenFamilyGuard refreshTokenFamilyGuard;
     @InjectMocks private AuthServiceImpl authService;
 
     @BeforeEach
@@ -126,7 +128,8 @@ class AuthServiceImplTest {
                 () -> authService.refresh(oldRaw, "JUnit", "127.0.0.1"));
 
         assertEquals(ErrorCode.UNAUTHORIZED, ex.getCode());
-        verify(refreshTokenMapper).revokeFamily(eq("family-replay"), any(LocalDateTime.class));
+        verify(refreshTokenFamilyGuard).revokeFamilyCommitted("family-replay");
+        verify(refreshTokenMapper, never()).revokeFamily(any(), any());
         verify(refreshTokenMapper, never()).insert(any(RefreshToken.class));
         verify(jwtService, never()).create(any());
     }

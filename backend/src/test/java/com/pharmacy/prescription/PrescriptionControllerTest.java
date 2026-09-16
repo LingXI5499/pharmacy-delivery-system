@@ -36,7 +36,7 @@ class PrescriptionControllerTest {
     void setUp() {
         service = mock(PrescriptionService.class);
         mvc = MockMvcBuilders.standaloneSetup(new PrescriptionController(service))
-                .setControllerAdvice(new GlobalExceptionHandler())
+                .setControllerAdvice(new GlobalExceptionHandler(mock(com.pharmacy.observability.PharmacyBusinessMetrics.class)))
                 .build();
         SecurityContextHolder.clearContext();
     }

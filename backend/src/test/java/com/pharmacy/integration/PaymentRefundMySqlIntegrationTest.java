@@ -221,8 +221,10 @@ class PaymentRefundMySqlIntegrationTest {
         Long orderId = id("SELECT id FROM pharmacy_order WHERE order_no=?", orderNo);
         jdbc.update("INSERT INTO pharmacy_order_item(order_id,medicine_id,medicine_name,medicine_price,quantity,subtotal_amount) VALUES(?,?,?,?,?,?)",
                 orderId, medicineId, "支付药品_" + marker, price, qty, amount);
+        Long orderItemId = id("SELECT id FROM pharmacy_order_item WHERE order_id=?", orderId);
 
         PharmacyOrderItem item = new PharmacyOrderItem();
+        item.setId(orderItemId);
         item.setOrderId(orderId);
         item.setMedicineId(medicineId);
         item.setMedicineName("支付药品_" + marker);

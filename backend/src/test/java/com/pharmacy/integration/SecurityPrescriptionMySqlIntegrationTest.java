@@ -162,11 +162,12 @@ class SecurityPrescriptionMySqlIntegrationTest {
 
     @Test
     void nonOwnerPrescriptionDownloadReturnsNotFound() throws Exception {
+        long medicineId = seedMedicine();
         String ownerAccess = loginAccess(username);
         MockMultipartFile file = new MockMultipartFile("file", "rx.pdf", "application/pdf", PDF);
         MvcResult uploaded = mvc.perform(multipart("/api/user/prescriptions")
                         .file(file)
-                        .param("medicineIds", "1")
+                        .param("medicineIds", String.valueOf(medicineId))
                         .param("quantities", "1")
                         .header("Authorization", "Bearer " + ownerAccess))
                 .andExpect(status().isOk())
@@ -181,6 +182,23 @@ class SecurityPrescriptionMySqlIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(ErrorCode.NOT_FOUND))
                 .andExpect(jsonPath("$.message").value("处方不存在"));
+
+        jdbc.update("DELETE FROM prescription_item WHERE prescription_id=?", prescriptionId);
+        jdbc.update("DELETE FROM prescription WHERE id=?", prescriptionId);
+        jdbc.update("DELETE FROM medicine WHERE id=?", medicineId);
+        jdbc.update("DELETE FROM medicine_category WHERE category_name=?", "Q1 Rx Cat " + marker);
+    }
+
+    private long seedMedicine() {
+        jdbc.update("INSERT INTO medicine_category(category_name,sort_no,status,is_deleted) VALUES(?,?,1,0)",
+                "Q1 Rx Cat " + marker, 0);
+        Long categoryId = jdbc.queryForObject(
+                "SELECT id FROM medicine_category WHERE category_name=?", Long.class, "Q1 Rx Cat " + marker);
+        jdbc.update("""
+                INSERT INTO medicine(category_id,medicine_name,price,stock,warning_stock,prescription_required,status,version,is_deleted)
+                VALUES(?,?,10.00,0,5,1,1,0,0)
+                """, categoryId, "Q1 Rx Med " + marker);
+        return jdbc.queryForObject("SELECT id FROM medicine WHERE medicine_name=?", Long.class, "Q1 Rx Med " + marker);
     }
 
     private String loginAccess(String name) throws Exception {

@@ -78,7 +78,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class, noRollbackFor = BusinessException.class)
     public AuthTokensVO refresh(String rawToken, String userAgent, String ipAddress) {
         if (rawToken == null || rawToken.isBlank()) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "刷新令牌缺失");
@@ -88,6 +88,7 @@ public class AuthServiceImpl implements AuthService {
         if (stored == null) throw new BusinessException(ErrorCode.UNAUTHORIZED, "刷新令牌无效");
         LocalDateTime now = LocalDateTime.now();
         if (stored.getRevokedAt() != null) {
+            // BusinessException must not roll back: family revoke has to persist after replay detection.
             refreshTokenMapper.revokeFamily(stored.getFamilyId(), now);
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "检测到刷新令牌重放，当前登录已撤销");
         }

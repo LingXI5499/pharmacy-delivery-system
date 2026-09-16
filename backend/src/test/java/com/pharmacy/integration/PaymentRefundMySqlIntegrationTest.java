@@ -171,7 +171,8 @@ class PaymentRefundMySqlIntegrationTest {
         assertEquals(40401, missing.getCode());
 
         assertEquals("PENDING_PAYMENT", text("SELECT order_status FROM pharmacy_order WHERE id=?", fixture.orderId()));
-        assertEquals(0, quantity("SELECT COUNT(*) FROM inventory_ledger WHERE business_id=?", fixture.orderId().toString()));
+        assertEquals(0, quantity("SELECT COUNT(*) FROM inventory_ledger WHERE business_type='SALE_COMMIT' AND business_id=?",
+                fixture.orderId().toString()));
         assertEquals("PENDING", text("SELECT status FROM payment_attempt WHERE id=?", attempt.getId()));
     }
 

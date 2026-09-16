@@ -31,11 +31,11 @@ DELETE FROM medicine_category WHERE category_name LIKE 'E1 %';
 SET FOREIGN_KEY_CHECKS = 1;
 
 INSERT INTO sys_user (username, password, nickname, phone, role, status) VALUES
-('e1_admin', 'test123456', 'E1 管理员', '13810000001', 'ADMIN', 1),
-('e1_user', 'test123456', 'E1 普通用户', '13810000002', 'USER', 1),
-('e1_pharmacist', 'test123456', 'E1 药师', '13810000003', 'PHARMACIST', 1),
-('e1_purchaser', 'test123456', 'E1 采购员', '13810000004', 'PURCHASER', 1),
-('e1_warehouse', 'test123456', 'E1 仓库员', '13810000005', 'WAREHOUSE', 1);
+('e1_admin', '$2b$12$Ccf2Ffq7NOIzz8Q3k/OyuOS.a8JTyToH0/qgE5tyyeqASMTUSMX8i', 'E1 管理员', '13810000001', 'ADMIN', 1),
+('e1_user', '$2b$12$Ccf2Ffq7NOIzz8Q3k/OyuOS.a8JTyToH0/qgE5tyyeqASMTUSMX8i', 'E1 普通用户', '13810000002', 'USER', 1),
+('e1_pharmacist', '$2b$12$Ccf2Ffq7NOIzz8Q3k/OyuOS.a8JTyToH0/qgE5tyyeqASMTUSMX8i', 'E1 药师', '13810000003', 'PHARMACIST', 1),
+('e1_purchaser', '$2b$12$Ccf2Ffq7NOIzz8Q3k/OyuOS.a8JTyToH0/qgE5tyyeqASMTUSMX8i', 'E1 采购员', '13810000004', 'PURCHASER', 1),
+('e1_warehouse', '$2b$12$Ccf2Ffq7NOIzz8Q3k/OyuOS.a8JTyToH0/qgE5tyyeqASMTUSMX8i', 'E1 仓库员', '13810000005', 'WAREHOUSE', 1);
 
 INSERT INTO sys_user_role(user_id, role_id)
 SELECT u.id, r.id

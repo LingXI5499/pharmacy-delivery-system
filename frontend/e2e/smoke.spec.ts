@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('guest visiting cart is redirected to login', async ({ page }) => {
   await page.goto('/cart')
 
-  await expect(page).toHaveURL(/\/login\?redirect=%2Fcart$/)
+  await expect(page).toHaveURL(/\/login\?redirect=\/cart$/)
   await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
 })
 

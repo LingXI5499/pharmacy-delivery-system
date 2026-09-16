@@ -3,7 +3,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import { DataAnalysis, FolderOpened, Box, Warning, Tickets, Van, User, ArrowDown, FirstAidKit, House } from '@element-plus/icons-vue'
+import { DataAnalysis, FolderOpened, Box, Warning, Tickets, Van, User, ArrowDown, FirstAidKit, House, ShoppingCart } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
 const route = useRoute(); const router = useRouter(); const userStore = useUserStore()
@@ -11,7 +11,8 @@ const active = computed(() => route.path)
 const menus = [
   { path:'/admin/dashboard', label:'控制中心', icon:DataAnalysis }, { path:'/admin/categories',label:'药品分类',icon:FolderOpened },
   { path:'/admin/medicines',label:'药品管理',icon:Box }, { path:'/admin/inventory',label:'库存预警',icon:Warning },
-  { path:'/admin/orders',label:'订单管理',icon:Tickets }, { path:'/admin/riders',label:'骑手管理',icon:Van }, { path:'/admin/users',label:'用户管理',icon:User }
+  { path:'/admin/orders',label:'订单管理',icon:Tickets }, { path:'/admin/purchase-orders',label:'采购审批',icon:ShoppingCart },
+  { path:'/admin/riders',label:'骑手管理',icon:Van }, { path:'/admin/users',label:'用户管理',icon:User }
 ]
 const logout = async () => { await ElMessageBox.confirm('确认退出管理员账号吗？','退出登录',{type:'warning'}); await userStore.logout(); router.push('/login') }
 </script>

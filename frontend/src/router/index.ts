@@ -34,6 +34,7 @@ const router = createRouter({
         { path: 'orders', name: 'admin-orders', component: () => import('@/views/admin/OrdersView.vue') },
         { path: 'orders/:id', name: 'admin-order-detail', component: () => import('@/views/admin/OrderDetailView.vue') },
         { path: 'riders', name: 'admin-riders', component: () => import('@/views/admin/RidersView.vue') },
+        { path: 'purchase-orders', name: 'admin-purchase-orders', component: () => import('@/views/admin/PurchaseOrdersView.vue'), meta: { title: '采购审批' } },
         { path: 'users', name: 'admin-users', component: () => import('@/views/admin/UsersView.vue') },
         { path: 'profile', name: 'admin-profile', component: () => import('@/views/admin/ProfileView.vue') }
       ]

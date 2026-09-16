@@ -38,7 +38,7 @@ jobs:
       DB_USERNAME: pharmacy_perf
       DB_PASSWORD: perf-only-password
       JWT_SECRET: perf-only-signing-key-with-at-least-thirty-two-bytes
-      MESSAGING_ENABLED: 'true'
+      MESSAGING_ENABLED: 'false'
       SPRING_CACHE_TYPE: redis
       P1_DB_NAME: pharmacy_delivery_perf
       P1_DB_USER: pharmacy_perf

@@ -9,8 +9,17 @@ import sys
 
 
 def metric(summary: dict, name: str, field: str) -> str:
-    values = summary.get("metrics", {}).get(name, {}).get("values", {})
+    node = summary.get("metrics", {}).get(name, {})
+    values = node.get("values", node)
+    if field == "count" and "count" in node:
+        return str(node["count"])
+    if field == "rate" and "value" in node and name.endswith("_ok"):
+        return f"{node['value']:.4f}"
     if field not in values:
+        if field == "rate" and "value" in node:
+            return f"{node['value']:.4f}"
+        if field == "count" and "count" in values:
+            return str(values["count"])
         return "未采集"
     value = values[field]
     if isinstance(value, float):

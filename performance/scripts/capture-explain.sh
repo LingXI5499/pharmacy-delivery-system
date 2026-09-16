@@ -31,7 +31,7 @@ OUT_FILE="${OUT_DIR}/explain-${LABEL}.txt"
 {
   echo
   echo "# SHOW INDEX"
-  "${MYSQL_CMD[@]}" --table -e "SHOW INDEX FROM medicine WHERE Key_name LIKE 'idx_medicine%'; SHOW INDEX FROM medicine_batch WHERE Key_name LIKE 'idx_batch%';"
+  "${MYSQL_CMD[@]}" --table -e "SHOW INDEX FROM medicine; SHOW INDEX FROM medicine_batch;"
 } >> "${OUT_FILE}"
 
 echo "wrote ${OUT_FILE}"

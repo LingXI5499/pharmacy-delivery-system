@@ -67,5 +67,5 @@
 
 | 参考与核验 | 代码级核验点 | 采用的不变量 | 明确拒绝 / 许可证结论 |
 |---|---|---|---|
-| Grafana k6 `v0.54.0` 官方 Linux amd64 二进制 | `performance/k6/catalog_and_order.js`；独立 `.github/workflows/performance.yml` | 100 VU / 10 min 只在性能工作流运行；对账失败则失败；p95 未达标保留真实结果 | AGPL-3.0：只当压测 CLI 使用，不复制 k6 源码，不引入 Docker |
+| Grafana k6 `v0.54.0` 官方 Linux amd64 二进制 | `performance/k6/catalog_and_order.js`；独立 `.github/workflows/performance.yml` | 100 VU / 10 min 只在性能工作流运行；对账失败则失败；p95 未达标保留真实结果；压测关闭 AMQP confirm | AGPL-3.0：只当压测 CLI 使用，不复制 k6 源码，不引入 Docker |
 | 本仓库 V2 批次索引 | `idx_batch_fefo` 保持 `medicine_id` 最左；V5 只加目录 `(is_deleted,status,create_time)` 与跨 SKU 可售批次 `(sellable,quality_status,expiry_date,medicine_id,available_qty)` | FEFO 仍是 `expiry_date ASC, id ASC`；`medicine.stock` 仍是聚合读模型 | 拒绝改 FEFO 最左列、拒绝无 EXPLAIN 堆索引、拒绝把 10 分钟压测写入 `ci.yml` |

@@ -37,6 +37,15 @@ stop_app() {
     wait "${pid}" 2>/dev/null || true
     rm -f "${PID_FILE}"
   fi
+  local attempt
+  for attempt in $(seq 1 30); do
+    if ! curl --fail --silent "http://127.0.0.1:${APP_PORT}/actuator/health" >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "backend still answering health after stop" >&2
+  return 1
 }
 
 start_app() {

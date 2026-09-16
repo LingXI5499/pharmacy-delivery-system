@@ -37,3 +37,19 @@
 | 本仓库既有实现 | `PaymentService.callback` / `RefundService.callback`；`InventoryServiceImpl.refundRestock` | 发货前 `restockRequired=1` 才回补；`COMMITTED→RESTOCKED`；重复回调不重复流水 | 修复 `mark` 误要求 ACTIVE 导致回补后预占未翻转的缺陷；不占用 V4 迁移编号 |
 
 测试落点：`PaymentServiceTest`、`RefundServiceTest`、`PaymentRefundMySqlIntegrationTest`（`DB_URL` 门控，覆盖 10 次并发支付/退款回调）。
+
+## B1：库存盘点、差异对账与近效期
+
+| 参考与核验 | 代码级核验点 | 采用的不变量 | 明确拒绝 / 许可证结论 |
+|---|---|---|---|
+| [ERPNext `09dea8b`](https://github.com/frappe/erpnext/tree/09dea8b1b55860646802baab7a8bef8305d47844) / [OpenBoxes `635b225`](https://github.com/openboxes/openboxes/tree/635b225b0dfc0d07619dad1a6583fbd9d803d5f4) | 盘点差异入台账、批次强关联、近效期过滤 | `DRAFT→COUNTING→COMPLETED/CANCELED`；完成时锁批次；`STOCK_COUNT` 只追加；对账只读不静默修正；近效期 30/60/90 排除过期/隔离/不可售 | GPLv3/EPL：仅学领域规则；只用 `V4__inventory_count_reconciliation.sql`，不改 V1～V3 |
+
+测试落点：`InventoryCountServiceTest`、`InventoryCountMySqlIntegrationTest`（并发完成、重复完成、对账只读）。
+
+## B1：库存盘点、差异对账与近效期
+
+| 参考与核验 | 代码级核验点 | 采用的不变量 | 明确拒绝 / 许可证结论 |
+|---|---|---|---|
+| [ERPNext `09dea8b`](https://github.com/frappe/erpnext/tree/09dea8b1b55860646802baab7a8bef8305d47844) / [OpenBoxes `635b225`](https://github.com/openboxes/openboxes/tree/635b225b0dfc0d07619dad1a6583fbd9d803d5f4) | 盘点差异入台账、批次强关联、近效期过滤 | `DRAFT→COUNTING→COMPLETED/CANCELED`；完成时锁批次；`STOCK_COUNT` 只追加；对账只读不静默修正；近效期 30/60/90 排除过期/隔离/不可售 | GPLv3/EPL：仅学领域规则；只用 `V4__inventory_count_reconciliation.sql`，不改 V1～V3 |
+
+测试落点：`InventoryCountServiceTest`、`InventoryCountMySqlIntegrationTest`（并发完成、重复完成、对账只读）。

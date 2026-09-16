@@ -15,5 +15,9 @@ public interface InventoryService {
     MedicineBatch receive(Long medicineId, String batchNo, LocalDate productionDate, LocalDate expiryDate,
                           BigDecimal purchasePrice, int qualifiedQty, String receiptNo, Long operatorId);
     void adjustBatch(Long batchId, String adjustType, int quantity, String reason, Long operatorId);
+    /**
+     * Apply a completed stock-count delta to one batch and append a STOCK_COUNT ledger row.
+     */
+    void applyStockCount(Long batchId, int delta, String countNo, String reason, Long operatorId);
     void refundRestock(Long orderId, Long operatorId);
 }

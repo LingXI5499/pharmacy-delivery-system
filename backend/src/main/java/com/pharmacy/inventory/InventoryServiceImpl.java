@@ -127,6 +127,34 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = {"catalogPages", "catalogMedicine"}, allEntries = true)
+    public void applyStockCount(Long batchId, int delta, String countNo, String reason, Long operatorId) {
+        if (countNo == null || countNo.isBlank()) {
+            throw new BusinessException(ErrorCode.PARAM_INVALID, "盘点单号不能为空");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException(ErrorCode.PARAM_INVALID, "盘点差异必须填写原因");
+        }
+        if (delta == 0) {
+            return;
+        }
+        MedicineBatch batch = batchMapper.lockById(batchId);
+        if (batch == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "库存批次不存在");
+        }
+        if (batchMapper.adjustAvailable(batchId, delta) != 1) {
+            throw new BusinessException(ErrorCode.STOCK_OR_STATUS_CONFLICT, "盘点调整后可用库存不能小于零");
+        }
+        if (delta > 0) {
+            medicineMapper.restoreStock(batch.getMedicineId(), delta);
+        } else if (medicineMapper.decreaseStock(batch.getMedicineId(), -delta) != 1) {
+            throw new BusinessException(ErrorCode.STOCK_OR_STATUS_CONFLICT, "药品聚合库存不足");
+        }
+        appendLedger("STOCK_COUNT", countNo, batch, delta, 0, operatorId, reason);
+    }
+
+    @Override
     @Transactional(rollbackFor=Exception.class)
     @CacheEvict(cacheNames={"catalogPages","catalogMedicine"},allEntries=true)
     public void refundRestock(Long orderId, Long operatorId) {

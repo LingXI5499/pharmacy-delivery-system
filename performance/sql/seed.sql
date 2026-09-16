@@ -30,8 +30,10 @@ DELETE FROM medicine_category WHERE category_name LIKE 'P1-CAT-%';
 
 SET FOREIGN_KEY_CHECKS = 1;
 
-DROP TEMPORARY TABLE IF EXISTS p1_digits;
-CREATE TEMPORARY TABLE p1_digits (n INT NOT NULL PRIMARY KEY);
+DROP TABLE IF EXISTS p1_digits;
+CREATE TABLE p1_digits (
+  n INT NOT NULL PRIMARY KEY
+) ENGINE=InnoDB;
 INSERT INTO p1_digits (n) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
 INSERT INTO medicine_category (category_name, sort_no, status, is_deleted)
@@ -280,3 +282,4 @@ JOIN medicine m ON m.medicine_name = 'P1 Catalog 0001'
 WHERE o.order_no LIKE 'P1H%';
 
 ANALYZE TABLE medicine, medicine_batch, pharmacy_order, pharmacy_order_item, inventory_reservation, inventory_ledger, shopping_cart;
+DROP TABLE IF EXISTS p1_digits;

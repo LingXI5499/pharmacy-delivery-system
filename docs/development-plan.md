@@ -22,7 +22,7 @@
 - [x] Redis 停止时公共商品读取回退 MySQL 的 CI 故障演练。
 - [x] RabbitMQ 停止时订单事务与库存预占仍成功、事件保持未完成；Broker 恢复后定时重放、Publisher Confirm 和事件归档均通过真实 HTTP + 原生 RabbitMQ CI 演练。
 - [x] 浏览器 Playwright E2E（E1，PR #9 已合入集成分支）。
-- [ ] 100 VU 10 分钟 k6 报告与索引优化对比（P1；数字必须来自 `performance.yml` 产物）。
+- [x] 100 VU 10 分钟 k6 与 V5 索引对比：GitHub Actions `35088568109`，报告 `docs/reports/p1-performance.md`。目录 p95 18.24ms、下单 p95 32.34ms、业务成功率 99.77%、对账 0 差异。未覆盖带 Publisher Confirm 的下单路径。
 - [x] 已支付取消进入退款状态机，并实现回调幂等与发货前库存回补规则。
 - [ ] 退款故障集成测试、库存盘点 / 对账、监控仪表盘仍属于里程碑 B，不应在完成验证前写入简历。
 

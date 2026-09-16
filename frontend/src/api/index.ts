@@ -72,7 +72,20 @@ export const paymentApi = {
       amount
     })
 }
-export const procurementApi = { suppliers:()=>http.get<any,any[]>('/purchaser/suppliers'), addSupplier:(data:any)=>http.post<any,any>('/purchaser/suppliers',data), createOrder:(data:any)=>http.post<any,any>('/purchaser/purchase-orders',data), receive:(data:any)=>http.post<any,any>('/warehouse/purchase-receipts',data) }
+export const procurementApi = {
+  suppliers: () => http.get<any, any[]>('/purchaser/suppliers'),
+  addSupplier: (data: any) => http.post<any, any>('/purchaser/suppliers', data),
+  createOrder: (data: any) => http.post<any, any>('/purchaser/purchase-orders', data),
+  purchaserOrders: (params: any = {}) => http.get<any, any[]>('/purchaser/purchase-orders', { params }),
+  purchaserDetail: (id: number) => http.get<any, any>(`/purchaser/purchase-orders/${id}`),
+  adminOrders: (params: any = {}) => http.get<any, any[]>('/admin/purchase-orders', { params }),
+  adminDetail: (id: number) => http.get<any, any>(`/admin/purchase-orders/${id}`),
+  approve: (id: number) => http.post<any, void>(`/admin/purchase-orders/${id}/approve`),
+  reject: (id: number, reason: string) => http.post<any, void>(`/admin/purchase-orders/${id}/reject`, { reason }),
+  warehouseOrders: () => http.get<any, any[]>('/warehouse/purchase-orders'),
+  warehouseDetail: (id: number) => http.get<any, any>(`/warehouse/purchase-orders/${id}`),
+  receive: (data: any) => http.post<any, any>('/warehouse/purchase-receipts', data)
+}
 export const inventoryApi = {
   batches:(params:any={})=>http.get<any,any[]>('/warehouse/inventory/batches',{params}),
   ledger:(params:any={})=>http.get<any,any[]>('/warehouse/inventory/ledger',{params}),

@@ -28,3 +28,12 @@
 | 本仓库既有实现 | `AuthServiceImpl.refresh` 轮换与 `revokeFamily`；`PrescriptionService` Tika + 路径归一化 + 非本人 `NOT_FOUND` | Refresh 重放撤销令牌族；处方内容检测；越权隐藏存在性；文件仅写入配置目录 | 未改生产代码；本轮仅新增测试。不采用仅 mock Mapper 的假幂等断言 |
 
 测试落点：`JwtServiceTest`、`JwtAuthenticationFilterTest`、`SecurityAccessMvcTest`、`AuthServiceImplTest` 扩展、`PrescriptionServiceTest`（`@TempDir`）、`PrescriptionControllerTest`、`SecurityPrescriptionMySqlIntegrationTest`（`DB_URL` 门控）。
+
+## Q2：支付退款幂等与故障测试
+
+| 参考与核验 | 代码级核验点 | 采用的不变量 | 明确拒绝 / 许可证结论 |
+|---|---|---|---|
+| [Mall4j `f19b355`](https://github.com/gz-yami/mall4j/tree/f19b355fe50485b8c41507e6e646fa431fe064a8) | 条件更新与订单事务边界 | 支付/退款回调以 DB 行锁 + 状态短路幂等；金额必须与 attempt/refund 一致 | 不复制 AGPLv3 代码 |
+| 本仓库既有实现 | `PaymentService.callback` / `RefundService.callback`；`InventoryServiceImpl.refundRestock` | 发货前 `restockRequired=1` 才回补；`COMMITTED→RESTOCKED`；重复回调不重复流水 | 修复 `mark` 误要求 ACTIVE 导致回补后预占未翻转的缺陷；不占用 V4 迁移编号 |
+
+测试落点：`PaymentServiceTest`、`RefundServiceTest`、`PaymentRefundMySqlIntegrationTest`（`DB_URL` 门控，覆盖 10 次并发支付/退款回调）。

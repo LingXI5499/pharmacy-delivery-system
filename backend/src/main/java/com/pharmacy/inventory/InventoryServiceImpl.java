@@ -80,7 +80,7 @@ public class InventoryServiceImpl implements InventoryService {
             if (batchMapper.confirm(batch.getId(), reservation.getQuantity()) != 1) {
                 throw new BusinessException(ErrorCode.STOCK_OR_STATUS_CONFLICT, "预占库存确认失败");
             }
-            mark(reservation, "COMMITTED");
+            mark(reservation, "ACTIVE", "COMMITTED");
             appendLedger("SALE_COMMIT", orderId.toString(), batch, 0, -reservation.getQuantity(), operatorId, "支付成功销售出库");
         }
     }
@@ -95,7 +95,7 @@ public class InventoryServiceImpl implements InventoryService {
                 throw new BusinessException(ErrorCode.STOCK_OR_STATUS_CONFLICT, "预占库存释放失败");
             }
             medicineMapper.restoreStock(batch.getMedicineId(), reservation.getQuantity());
-            mark(reservation, "RELEASED");
+            mark(reservation, "ACTIVE", "RELEASED");
             appendLedger("ORDER_RELEASE", orderId.toString(), batch, reservation.getQuantity(), -reservation.getQuantity(), operatorId, reason);
         }
     }
@@ -129,12 +129,27 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(rollbackFor=Exception.class)
     @CacheEvict(cacheNames={"catalogPages","catalogMedicine"},allEntries=true)
-    public void refundRestock(Long orderId,Long operatorId){for(InventoryReservation reservation:reservationMapper.committedForUpdate(orderId)){MedicineBatch batch=batchMapper.selectById(reservation.getBatchId());batchMapper.addAvailable(batch.getId(),reservation.getQuantity());medicineMapper.restoreStock(batch.getMedicineId(),reservation.getQuantity());mark(reservation,"RESTOCKED");appendLedger("REFUND_RESTOCK",orderId.toString(),batch,reservation.getQuantity(),0,operatorId,"退款完成，未发货库存回补");}}
+    public void refundRestock(Long orderId, Long operatorId) {
+        for (InventoryReservation reservation : reservationMapper.committedForUpdate(orderId)) {
+            MedicineBatch batch = batchMapper.selectById(reservation.getBatchId());
+            if (batchMapper.addAvailable(batch.getId(), reservation.getQuantity()) != 1) {
+                throw new BusinessException(ErrorCode.STOCK_OR_STATUS_CONFLICT, "退款回补库存失败");
+            }
+            medicineMapper.restoreStock(batch.getMedicineId(), reservation.getQuantity());
+            mark(reservation, "COMMITTED", "RESTOCKED");
+            appendLedger("REFUND_RESTOCK", orderId.toString(), batch, reservation.getQuantity(), 0, operatorId, "退款完成，未发货库存回补");
+        }
+    }
 
-    private void mark(InventoryReservation reservation, String status) {
-        reservationMapper.update(null, new LambdaUpdateWrapper<InventoryReservation>()
-                .eq(InventoryReservation::getId, reservation.getId()).eq(InventoryReservation::getStatus, "ACTIVE")
-                .set(InventoryReservation::getStatus, status).set(InventoryReservation::getUpdateTime, LocalDateTime.now()));
+    private void mark(InventoryReservation reservation, String expectedStatus, String nextStatus) {
+        int updated = reservationMapper.update(null, new LambdaUpdateWrapper<InventoryReservation>()
+                .eq(InventoryReservation::getId, reservation.getId())
+                .eq(InventoryReservation::getStatus, expectedStatus)
+                .set(InventoryReservation::getStatus, nextStatus)
+                .set(InventoryReservation::getUpdateTime, LocalDateTime.now()));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.STOCK_OR_STATUS_CONFLICT, "库存预占状态更新失败");
+        }
     }
 
     private void appendLedger(String type, String businessId, MedicineBatch before,

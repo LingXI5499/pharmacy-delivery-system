@@ -6,6 +6,7 @@ import com.pharmacy.config.SecurityConfig;
 import com.pharmacy.entity.SysUser;
 import com.pharmacy.enums.UserRole;
 import com.pharmacy.mapper.SysUserMapper;
+import com.pharmacy.observability.PharmacyBusinessMetrics;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +33,7 @@ class SecurityAccessMvcTest {
     @MockBean private SysUserMapper userMapper;
     @MockBean private AuditRecorder auditRecorder;
     @MockBean private StringRedisTemplate stringRedisTemplate;
+    @MockBean private PharmacyBusinessMetrics pharmacyBusinessMetrics;
 
     @Test
     void unauthenticatedRequestReturns401() throws Exception {

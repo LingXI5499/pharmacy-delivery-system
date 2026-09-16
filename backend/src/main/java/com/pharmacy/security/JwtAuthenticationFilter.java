@@ -8,6 +8,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import com.pharmacy.observability.RequestLogContext;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -35,6 +36,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     if (entity != null && Integer.valueOf(1).equals(entity.getStatus())) {
                         AuthenticatedUser user = new AuthenticatedUser(entity.getId(), entity.getUsername(), entity.getNickname(), entity.getRole());
                         request.setAttribute(AuthenticatedUser.class.getName(), user);
+                        RequestLogContext.setUserId(user.id());
                         var authority = new SimpleGrantedAuthority("ROLE_" + entity.getRole().name());
                         SecurityContextHolder.getContext().setAuthentication(
                                 new UsernamePasswordAuthenticationToken(user, null, List.of(authority)));

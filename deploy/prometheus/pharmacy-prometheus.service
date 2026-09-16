@@ -1,0 +1,15 @@
+[Unit]
+Description=Prometheus for 速安药房 V2
+After=network.target
+
+[Service]
+Type=simple
+User=prometheus
+ExecStart=/usr/local/bin/prometheus \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/var/lib/prometheus \
+  --web.listen-address=127.0.0.1:9090
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

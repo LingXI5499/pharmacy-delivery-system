@@ -80,6 +80,8 @@ app:
     replay-initial-delay-ms: ${EVENT_REPLAY_INITIAL_DELAY_MS:30000}
   redis:
     distributed-locks-enabled: ${REDIS_DISTRIBUTED_LOCKS_ENABLED:false}
+  observability:
+    event-gauge-refresh-ms: ${EVENT_GAUGE_REFRESH_MS:30000}
 
 management:
   endpoints:

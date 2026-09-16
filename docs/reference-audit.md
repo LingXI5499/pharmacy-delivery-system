@@ -54,3 +54,11 @@
 | — | 最小契约：`GET` 列表/明细、`POST reject`、仓库可读待收单 | 仅扩展 `procurement` 包只读/拒绝能力以支撑 UI | 不复制第三方 UI 代码 |
 
 前端：`PurchaserView` / `WarehouseView` / `admin/PurchaseOrdersView`；路由 `/admin/purchase-orders`。
+
+## O1：可观测性与运维
+
+| 参考与核验 | 代码级核验点 | 采用的不变量 | 明确拒绝 / 许可证结论 |
+|---|---|---|---|
+| 本仓库既有 Actuator/Micrometer | `logback-spring.xml` MDC；`RequestLogContext` 脱敏；`PharmacyBusinessMetrics` / `OutstandingEventMetrics` | Trace/user/business/errorCode 结构化日志；禁止记录令牌与处方内容 | 不使用 Docker；不修改主 CI、库存/支付/前端业务 |
+| Linux 原生 Prometheus/Grafana | `deploy/prometheus/**`、`deploy/grafana/**` | 仅 loopback scrape；Nginx 继续 deny 公网 `/actuator/` | 仅提供配置与仪表盘导出，不捆绑第三方专有仪表盘授权问题 |
+| 备份脚本 | `deploy/backup/*.sh` + `test-safety-guards.sh` | 拒绝空目标/危险路径/生产库恢复 | 本环境未对真实库执行 restore；真实演练需临时实例证据 |

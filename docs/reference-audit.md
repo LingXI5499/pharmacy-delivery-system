@@ -62,3 +62,10 @@
 | 本仓库既有 Actuator/Micrometer | `logback-spring.xml` MDC；`RequestLogContext` 脱敏；`PharmacyBusinessMetrics` / `OutstandingEventMetrics` | Trace/user/business/errorCode 结构化日志；禁止记录令牌与处方内容 | 不使用 Docker；不修改主 CI、库存/支付/前端业务 |
 | Linux 原生 Prometheus/Grafana | `deploy/prometheus/**`、`deploy/grafana/**` | 仅 loopback scrape；Nginx 继续 deny 公网 `/actuator/` | 仅提供配置与仪表盘导出，不捆绑第三方专有仪表盘授权问题 |
 | 备份脚本 | `deploy/backup/*.sh` + `test-safety-guards.sh` | 拒绝空目标/危险路径/生产库恢复 | 本环境未对真实库执行 restore；真实演练需临时实例证据 |
+
+## P1：k6 与索引
+
+| 参考与核验 | 代码级核验点 | 采用的不变量 | 明确拒绝 / 许可证结论 |
+|---|---|---|---|
+| Grafana k6 `v0.54.0` 官方 Linux amd64 二进制 | `performance/k6/catalog_and_order.js`；独立 `.github/workflows/performance.yml` | 100 VU / 10 min 只在性能工作流运行；对账失败则失败；p95 未达标保留真实结果；压测关闭 AMQP confirm | AGPL-3.0：只当压测 CLI 使用，不复制 k6 源码，不引入 Docker |
+| 本仓库 V2 批次索引 | `idx_batch_fefo` 保持 `medicine_id` 最左；V5 只加目录 `(is_deleted,status,create_time)` 与跨 SKU 可售批次 `(sellable,quality_status,expiry_date,medicine_id,available_qty)` | FEFO 仍是 `expiry_date ASC, id ASC`；`medicine.stock` 仍是聚合读模型 | 拒绝改 FEFO 最左列、拒绝无 EXPLAIN 堆索引、拒绝把 10 分钟压测写入 `ci.yml` |

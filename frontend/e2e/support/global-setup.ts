@@ -40,4 +40,15 @@ export default async function globalSetup(_config: FullConfig) {
     ],
     { stdio: ['pipe', 'inherit', 'inherit'], input: fs.readFileSync(seedFile) }
   )
+
+  const apiBase = process.env.E2E_API_BASE_URL || 'http://127.0.0.1:8089/api'
+  const response = await fetch(`${apiBase}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'e1_user', password: 'test123456' })
+  })
+  const body = await response.json() as { code?: number; message?: string }
+  if (!response.ok || body.code !== 0) {
+    throw new Error(`Seed login verification failed: HTTP ${response.status} code=${body.code} message=${body.message ?? 'unknown'}`)
+  }
 }

@@ -51,6 +51,7 @@ jobs:
           MESSAGING_ENABLED: 'false'
           SPRING_CACHE_TYPE: simple
           PRESCRIPTION_STORAGE_PATH: /tmp/pharmacy-e2e-prescriptions
+          APP_CORS_ALLOWED_ORIGIN: http://127.0.0.1:4173
         run: |
           java -jar target/pharmacy-delivery-backend-1.0.0.jar --server.port=8089 > /tmp/pharmacy-e2e.log 2>&1 &
           echo $! > /tmp/pharmacy-e2e.pid
@@ -75,6 +76,7 @@ jobs:
         working-directory: frontend
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
+          E2E_API_BASE_URL: http://127.0.0.1:8089/api
           E2E_DB_NAME: pharmacy_delivery_e2e
           E2E_DB_USER: pharmacy_e2e
           E2E_DB_PASSWORD: e2e-only-password

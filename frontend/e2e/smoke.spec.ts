@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { loginViaUi } from './support/auth'
 
 test('guest visiting cart is redirected to login', async ({ page }) => {
   await page.goto('/cart')
@@ -8,12 +9,7 @@ test('guest visiting cart is redirected to login', async ({ page }) => {
 })
 
 test('demo user can create and pay an otc order', async ({ page }) => {
-  await page.goto('/login')
-  await page.getByPlaceholder('请输入账号').fill('e1_user')
-  await page.getByPlaceholder('请输入密码').fill('test123456')
-  await page.getByRole('button', { name: '登录系统' }).click()
-
-  await expect(page).toHaveURL(/\/home$/)
+  await loginViaUi(page, 'e1_user', 'test123456', /\/home$/)
 
   const medicineId = await page.evaluate(async () => {
     const response = await fetch('/api/public/medicines?page=1&size=100')
@@ -40,12 +36,7 @@ test('demo user can create and pay an otc order', async ({ page }) => {
 })
 
 test('purchaser cannot access warehouse workbench', async ({ page }) => {
-  await page.goto('/login')
-  await page.getByPlaceholder('请输入账号').fill('e1_purchaser')
-  await page.getByPlaceholder('请输入密码').fill('test123456')
-  await page.getByRole('button', { name: '登录系统' }).click()
-
-  await expect(page).toHaveURL(/\/purchaser$/)
+  await loginViaUi(page, 'e1_purchaser', 'test123456', /\/purchaser$/)
   await page.goto('/warehouse')
   await expect(page).toHaveURL(/\/home$/)
 })

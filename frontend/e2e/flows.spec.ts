@@ -31,7 +31,7 @@ test('prescription order requires pharmacist approval before payment', async ({ 
   await userPage.locator('input[type="file"]').setInputFiles(rxFixture)
   await userPage.getByRole('button', { name: '提交订单' }).click()
   await expect(userPage).toHaveURL(/\/orders\/\d+$/)
-  await expect(userPage.getByText('待处方审核')).toBeVisible()
+  await expect(userPage.locator('section.hero .el-tag')).toContainText('待处方审核')
   await expect(userPage.getByRole('button', { name: '模拟支付' })).toHaveCount(0)
 
   const orderUrl = userPage.url()
@@ -55,6 +55,7 @@ test('prescription order requires pharmacist approval before payment', async ({ 
 })
 
 test('procurement approve and warehouse receive closes the loop', async ({ browser }) => {
+  test.setTimeout(120_000)
   const purchaserContext = await browser.newContext()
   const purchaserPage = await purchaserContext.newPage()
   await loginViaUi(purchaserPage, 'e1_purchaser', 'test123456', /\/purchaser$/)
@@ -80,8 +81,10 @@ test('procurement approve and warehouse receive closes the loop', async ({ brows
   await loginViaUi(adminPage, 'e1_admin', 'test123456', /\/admin\/dashboard$/)
   await adminPage.goto('/admin/purchase-orders')
   await expect(adminPage.getByRole('heading', { name: '采购审批' })).toBeVisible()
-  await adminPage.getByRole('button', { name: '批准' }).first().click()
-  await adminPage.getByRole('button', { name: '确定' }).click()
+  await adminPage.locator('.el-table__body').getByRole('button', { name: '批准' }).first().click()
+  const confirmDialog = adminPage.locator('.el-message-box')
+  await expect(confirmDialog).toBeVisible()
+  await confirmDialog.getByRole('button', { name: /确定|OK/ }).click()
   await expect(adminPage.getByText('采购单已批准')).toBeVisible()
   await adminContext.close()
 

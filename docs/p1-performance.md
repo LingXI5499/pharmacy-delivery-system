@@ -9,8 +9,7 @@
 正常路径：
 
 - 使用隔离库 `pharmacy_delivery_perf` 和虚构用户 `p1_user_001`～`p1_user_100`（密码 `test123456`）。
-- 读流量走 `GET /api/public/medicines`（默认排序、分类、关键词分页）。
-- 写流量走已登录用户：加购 → 提交订单（`Idempotency-Key` 每次唯一）→ 查询自己的订单列表。
+- k6 保持 100 VU：99 个读 VU + 1 个下单 VU。下单间隔 2.2s，以遵守现有 `POST /api/user/orders` 每 IP 每分钟 30 次限流，不关闭限流、不放宽库存。
 - 压测结束后用 SQL 对账：`medicine.stock` 与可售批次可用量、批次非负、ACTIVE 预占与 `reserved_qty`。
 
 异常路径：

@@ -15,9 +15,16 @@ const ordersCreated = new Counter('orders_created')
 export const options = {
   setupTimeout: '8m',
   scenarios: {
-    mixed: {
+    reads: {
       executor: 'constant-vus',
-      vus: Number(__ENV.VUS || 100),
+      exec: 'readMix',
+      vus: 99,
+      duration: __ENV.DURATION || '10m'
+    },
+    writes: {
+      executor: 'constant-vus',
+      exec: 'writeOrders',
+      vus: 1,
       duration: __ENV.DURATION || '10m'
     }
   },
@@ -75,22 +82,27 @@ export function setup() {
   for (let index = 1; index <= USER_COUNT; index += 1) {
     const username = `p1_user_${String(index).padStart(3, '0')}`
     users.push(loginUser(username))
-    sleep(3.5)
+    if (index < USER_COUNT) {
+      sleep(3.5)
+    }
   }
   return { hotMedicineId: match.id, users }
 }
 
-export default function (data) {
+export function readMix(data) {
   const user = data.users[(__VU - 1) % data.users.length]
-  const roll = Math.random()
-  if (roll < 0.75) {
+  if (Math.random() < 0.85) {
     readCatalog()
-  } else if (roll < 0.90) {
-    listOrders(user.token)
   } else {
-    createOrder(user.token, user.addressId, data.hotMedicineId)
+    listOrders(user.token)
   }
   sleep(0.2)
+}
+
+export function writeOrders(data) {
+  const user = data.users[0]
+  createOrder(user.token, user.addressId, data.hotMedicineId)
+  sleep(2.2)
 }
 
 function readCatalog() {
@@ -133,6 +145,7 @@ function createOrder(token, addressId, hotMedicineId) {
   const addOk = addRes.status === 200 && addBody?.code === 0
   if (!addOk) {
     businessOk.add(false)
+    sleep(2.2)
     return
   }
 

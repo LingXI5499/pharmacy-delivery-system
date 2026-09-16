@@ -34,6 +34,7 @@ class SecurityAccessMvcTest {
     @MockBean private AuditRecorder auditRecorder;
     @MockBean private StringRedisTemplate stringRedisTemplate;
     @MockBean private PharmacyBusinessMetrics pharmacyBusinessMetrics;
+    @MockBean private PharmacyBusinessMetrics pharmacyBusinessMetrics;
 
     @Test
     void unauthenticatedRequestReturns401() throws Exception {

@@ -21,6 +21,8 @@
 
 以上为**本机** `target/site/jacoco` 数字，不能写成 GitHub CI 已达标；合并前须看同一提交的 CI `mvn verify`。
 
+GitHub Actions run [35202631898](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/35202631898) 在 `f707fec` 失败：`MiscCoverageTest.currentUserRequiresAuthenticatedPrincipal` 被购物车/订单/地址 MVC 测试留在线程上的 `SecurityContext` 污染（Linux 类执行顺序与本机不同）。修复后以新 SHA 的 CI 为准。
+
 ## 1. 正常 / 异常 / 权限边界
 
 正常路径：下单幂等与 OTC 预占、处方药审核通过后预占、采购草稿审批与分批收货、FEFO 预占/确认/释放/入库/调整/盘点/退款回补、支付与退款回调幂等、支付超时关单。

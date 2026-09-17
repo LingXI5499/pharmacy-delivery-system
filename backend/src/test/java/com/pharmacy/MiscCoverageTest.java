@@ -11,6 +11,7 @@ import com.pharmacy.util.OrderNoUtil;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -33,8 +34,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class MiscCoverageTest {
+    @BeforeEach
     @AfterEach
-    void clear() {
+    void clearSecurityContext() {
         SecurityContextHolder.clearContext();
     }
 

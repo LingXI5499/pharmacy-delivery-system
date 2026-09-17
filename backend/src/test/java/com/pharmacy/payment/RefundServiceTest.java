@@ -100,6 +100,67 @@ class RefundServiceTest {
         assertEquals(ErrorCode.NOT_FOUND, ex.getCode());
     }
 
+    @Test
+    void requestCreatesPendingRefundForPackingOrder() {
+        PharmacyOrder order = order(20L, 8L, OrderStatus.TO_PACK);
+        when(orders.lockById(20L)).thenReturn(order);
+        when(refunds.selectOne(any())).thenReturn(null);
+        PaymentAttempt payment = new PaymentAttempt();
+        payment.setId(5L);
+        payment.setAmount(new BigDecimal("10.00"));
+        when(payments.selectOne(any())).thenReturn(payment);
+        RefundRecord created = refundService.request(8L, 20L, "不想要了");
+        assertEquals("PENDING", created.getStatus());
+        assertEquals(1, created.getRestockRequired());
+        assertEquals(OrderStatus.REFUNDING, order.getOrderStatus());
+        verify(refunds).insert(created);
+    }
+
+    @Test
+    void requestIsIdempotentWhenRefundExists() {
+        PharmacyOrder order = order(20L, 8L, OrderStatus.TO_PACK);
+        when(orders.lockById(20L)).thenReturn(order);
+        RefundRecord existing = pendingRefund(1L, 20L, 1, BigDecimal.TEN);
+        when(refunds.selectOne(any())).thenReturn(existing);
+        assertEquals(1L, refundService.requestByAdmin(1L, 20L, "管理员取消").getId());
+        verify(refunds, never()).insert(any(RefundRecord.class));
+    }
+
+    @Test
+    void requestRejectsBlankReasonIllegalStatusAndMissingPayment() {
+        assertEquals(ErrorCode.PARAM_INVALID,
+                assertThrows(BusinessException.class, () -> refundService.request(8L, 20L, " ")).getCode());
+        PharmacyOrder pending = order(20L, 8L, OrderStatus.PENDING_PAYMENT);
+        when(orders.lockById(20L)).thenReturn(pending);
+        when(refunds.selectOne(any())).thenReturn(null);
+        assertEquals(ErrorCode.ORDER_STATUS_CONFLICT,
+                assertThrows(BusinessException.class, () -> refundService.request(8L, 20L, "原因")).getCode());
+        PharmacyOrder packing = order(20L, 8L, OrderStatus.TO_PACK);
+        when(orders.lockById(20L)).thenReturn(packing);
+        when(payments.selectOne(any())).thenReturn(null);
+        assertEquals(ErrorCode.ORDER_STATUS_CONFLICT,
+                assertThrows(BusinessException.class, () -> refundService.request(8L, 20L, "原因")).getCode());
+    }
+
+    @Test
+    void failedCallbackRestoresOriginalStatus() {
+        RefundRecord refund = pendingRefund(4L, 13L, 1, BigDecimal.TEN);
+        PharmacyOrder order = order(13L, 8L, OrderStatus.REFUNDING);
+        when(refunds.lockByNo("REF4")).thenReturn(refund);
+        when(orders.lockById(13L)).thenReturn(order);
+        refundService.callback("REF4", "rcb-fail", false, BigDecimal.TEN);
+        assertEquals("FAILED", refund.getStatus());
+        assertEquals(OrderStatus.TO_PACK, order.getOrderStatus());
+        verify(inventory, never()).refundRestock(anyLong(), anyLong());
+    }
+
+    @Test
+    void callbackRejectsBlankKey() {
+        assertEquals(ErrorCode.PARAM_INVALID,
+                assertThrows(BusinessException.class,
+                        () -> refundService.callback("REF1", "", true, BigDecimal.TEN)).getCode());
+    }
+
     private static RefundRecord pendingRefund(Long id, Long orderId, int restockRequired, BigDecimal amount) {
         RefundRecord refund = new RefundRecord();
         refund.setId(id);

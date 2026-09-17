@@ -81,6 +81,6 @@ public class PrescriptionService {
     public List<Prescription> pending(){return mapper.selectList(new LambdaQueryWrapper<Prescription>().eq(Prescription::getStatus,"PENDING_REVIEW").isNotNull(Prescription::getOrderId).orderByAsc(Prescription::getCreateTime));}
     private void addLog(Long orderId,OrderStatus target,Long actor,String reason){OrderStatusLog log=new OrderStatusLog();log.setOrderId(orderId);log.setBeforeStatus(OrderStatus.PENDING_REVIEW);log.setAfterStatus(target);log.setOperatorType(OperatorType.ADMIN);log.setOperatorId(actor);log.setRemark(reason);log.setCreateTime(LocalDateTime.now());logMapper.insert(log);}
     private static String extension(String type){return switch(type){case "application/pdf"->".pdf";case "image/jpeg"->".jpg";default->".png";};}
-    private static String safeName(String name){if(name==null)return "prescription";return Paths.get(name).getFileName().toString().replaceAll("[\\r\\n]","");}
+    private static String safeName(String name){if(name==null||name.isBlank())return "prescription";return Paths.get(name).getFileName().toString().replaceAll("[\\r\\n]","");}
     private static String hex(byte[] b){return java.util.HexFormat.of().formatHex(b);}
 }

@@ -119,6 +119,52 @@ class PaymentServiceTest {
         assertEquals(ErrorCode.ORDER_STATUS_CONFLICT, ex.getCode());
     }
 
+    @Test
+    void createAttemptReusesPendingAndRejectsExpired() {
+        PharmacyOrder payable = order(1L, 8L, OrderStatus.PENDING_PAYMENT);
+        when(orderMapper.lockById(1L)).thenReturn(payable);
+        PaymentAttempt pending = pendingAttempt(5L, 1L, BigDecimal.TEN);
+        when(paymentMapper.selectOne(any())).thenReturn(pending).thenReturn(null);
+        assertEquals(5L, paymentService.createAttempt(8L, 1L).getId());
+        payable.setPaymentDeadline(LocalDateTime.now().minusMinutes(1));
+        assertEquals(ErrorCode.ORDER_STATUS_CONFLICT,
+                assertThrows(BusinessException.class, () -> paymentService.createAttempt(8L, 1L)).getCode());
+    }
+
+    @Test
+    void createAttemptInsertsWhenNonePending() {
+        PharmacyOrder payable = order(1L, 8L, OrderStatus.PENDING_PAYMENT);
+        when(orderMapper.lockById(1L)).thenReturn(payable);
+        when(paymentMapper.selectOne(any())).thenReturn(null);
+        paymentService.createAttempt(8L, 1L);
+        verify(paymentMapper).insert(any(PaymentAttempt.class));
+    }
+
+    @Test
+    void failedCallbackMarksAttemptWithoutSale() {
+        PaymentAttempt attempt = pendingAttempt(5L, 1L, BigDecimal.TEN);
+        PharmacyOrder order = order(1L, 8L, OrderStatus.PENDING_PAYMENT);
+        when(paymentMapper.lockByNo("PAY1")).thenReturn(attempt);
+        when(orderMapper.lockById(1L)).thenReturn(order);
+        paymentService.callback(8L, "PAY1", "cb-fail", false, BigDecimal.TEN);
+        assertEquals("FAILED", attempt.getStatus());
+        verify(inventoryService, never()).confirmSale(anyLong(), anyLong());
+    }
+
+    @Test
+    void callbackRejectsBlankKeyAndWrongOrderStatus() {
+        assertEquals(ErrorCode.PARAM_INVALID,
+                assertThrows(BusinessException.class,
+                        () -> paymentService.callback(8L, "PAY1", " ", true, BigDecimal.TEN)).getCode());
+        PaymentAttempt attempt = pendingAttempt(5L, 1L, BigDecimal.TEN);
+        PharmacyOrder packing = order(1L, 8L, OrderStatus.TO_PACK);
+        when(paymentMapper.lockByNo("PAY1")).thenReturn(attempt);
+        when(orderMapper.lockById(1L)).thenReturn(packing);
+        assertEquals(ErrorCode.ORDER_STATUS_CONFLICT,
+                assertThrows(BusinessException.class,
+                        () -> paymentService.callback(8L, "PAY1", "cb", true, BigDecimal.TEN)).getCode());
+    }
+
     private static PharmacyOrder order(Long id, Long userId, OrderStatus status) {
         PharmacyOrder order = new PharmacyOrder();
         order.setId(id);

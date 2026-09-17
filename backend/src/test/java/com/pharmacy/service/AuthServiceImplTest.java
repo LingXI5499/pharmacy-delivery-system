@@ -9,6 +9,7 @@ import com.pharmacy.enums.UserRole;
 import com.pharmacy.exception.BusinessException;
 import com.pharmacy.mapper.RefreshTokenMapper;
 import com.pharmacy.mapper.SysUserMapper;
+import com.pharmacy.security.AuthenticatedUser;
 import com.pharmacy.security.JwtService;
 import com.pharmacy.service.impl.AuthServiceImpl;
 import com.pharmacy.vo.AuthTokensVO;
@@ -31,6 +32,7 @@ import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -163,6 +165,132 @@ class AuthServiceImplTest {
         authService.logout("access-only", null);
         verify(jwtService).deny("access-only");
         verify(refreshTokenMapper, never()).selectForUpdate(any());
+    }
+
+    @Test
+    void registerRejectsDuplicateUsername() {
+        RegisterRequest request = new RegisterRequest();
+        request.setUsername("taken");
+        request.setPassword("123456");
+        request.setNickname("重复");
+        when(userMapper.selectCount(any())).thenReturn(1L);
+        BusinessException ex = assertThrows(BusinessException.class, () -> authService.register(request));
+        assertEquals(ErrorCode.USERNAME_EXISTS, ex.getCode());
+    }
+
+    @Test
+    void loginRejectsWrongPasswordAndDisabledAccount() {
+        LoginRequest request = new LoginRequest();
+        request.setUsername("alice");
+        request.setPassword("bad");
+        when(userMapper.selectOne(any())).thenReturn(activeUser(8L, "alice", UserRole.USER));
+        when(passwordEncoder.matches("bad", "hash")).thenReturn(false);
+        assertEquals(ErrorCode.PASSWORD_ERROR,
+                assertThrows(BusinessException.class, () -> authService.login(request, "ua", "1.1.1.1")).getCode());
+
+        SysUser disabled = activeUser(8L, "alice", UserRole.USER);
+        disabled.setStatus(0);
+        when(userMapper.selectOne(any())).thenReturn(disabled);
+        when(passwordEncoder.matches("secret", "hash")).thenReturn(true);
+        request.setPassword("secret");
+        assertEquals(ErrorCode.ACCOUNT_DISABLED,
+                assertThrows(BusinessException.class, () -> authService.login(request, "ua", "1.1.1.1")).getCode());
+    }
+
+    @Test
+    void loginRedirectsByRoleAndTruncatesMetadata() {
+        when(passwordEncoder.matches("secret", "hash")).thenReturn(true);
+        when(jwtService.create(any())).thenReturn("access");
+        when(jwtService.expiresInSeconds()).thenReturn(900L);
+        LoginRequest request = new LoginRequest();
+        request.setUsername("alice");
+        request.setPassword("secret");
+        String longUa = "U".repeat(300);
+        String longIp = "1".repeat(80);
+        for (UserRole role : UserRole.values()) {
+            when(userMapper.selectOne(any())).thenReturn(activeUser(8L, "alice", role));
+            AuthTokensVO tokens = authService.login(request, longUa, longIp);
+            assertNotNull(tokens.redirectPath());
+        }
+    }
+
+    @Test
+    void meAndRefreshRejectUnavailableAccounts() {
+        AuthenticatedUser principal = new AuthenticatedUser(8L, "alice", "A", UserRole.USER);
+        when(userMapper.selectById(8L)).thenReturn(null);
+        assertEquals(ErrorCode.UNAUTHORIZED,
+                assertThrows(BusinessException.class, () -> authService.me(principal)).getCode());
+
+        assertEquals(ErrorCode.UNAUTHORIZED,
+                assertThrows(BusinessException.class, () -> authService.refresh(" ", "ua", "ip")).getCode());
+        when(refreshTokenMapper.selectForUpdate(any())).thenReturn(null);
+        assertEquals(ErrorCode.UNAUTHORIZED,
+                assertThrows(BusinessException.class, () -> authService.refresh("raw", "ua", "ip")).getCode());
+
+        RefreshToken stored = storedToken("raw", "fam", null);
+        when(refreshTokenMapper.selectForUpdate(hash("raw"))).thenReturn(stored);
+        SysUser disabled = activeUser(8L, "alice", UserRole.USER);
+        disabled.setStatus(0);
+        when(userMapper.selectById(8L)).thenReturn(disabled);
+        assertEquals(ErrorCode.UNAUTHORIZED,
+                assertThrows(BusinessException.class, () -> authService.refresh("raw", "ua", "ip")).getCode());
+        verify(refreshTokenMapper).revokeFamily(eq("fam"), any(LocalDateTime.class));
+    }
+
+    @Test
+    void meReturnsActiveUser() {
+        AuthenticatedUser principal = new AuthenticatedUser(8L, "alice", "A", UserRole.USER);
+        when(userMapper.selectById(8L)).thenReturn(activeUser(8L, "alice", UserRole.USER));
+        assertEquals("alice", authService.me(principal).username());
+    }
+
+    @Test
+    void loginRegisterLogoutCoverRemainingBranches() {
+        LoginRequest request = new LoginRequest();
+        request.setUsername("missing");
+        request.setPassword("secret");
+        when(userMapper.selectOne(any())).thenReturn(null);
+        assertEquals(ErrorCode.PASSWORD_ERROR,
+                assertThrows(BusinessException.class, () -> authService.login(request, "ua", "ip")).getCode());
+
+        AuthenticatedUser principal = new AuthenticatedUser(8L, "alice", "A", UserRole.USER);
+        SysUser disabled = activeUser(8L, "alice", UserRole.USER);
+        disabled.setStatus(0);
+        when(userMapper.selectById(8L)).thenReturn(disabled);
+        assertEquals(ErrorCode.UNAUTHORIZED,
+                assertThrows(BusinessException.class, () -> authService.me(principal)).getCode());
+
+        RegisterRequest register = new RegisterRequest();
+        register.setUsername("blank-phone");
+        register.setPassword("123456");
+        register.setNickname("空电话");
+        register.setPhone("  ");
+        when(userMapper.selectCount(any())).thenReturn(0L);
+        when(passwordEncoder.encode("123456")).thenReturn("hash");
+        when(userMapper.insert(any(SysUser.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, SysUser.class).setId(11L);
+            return 1;
+        });
+        authService.register(register);
+        ArgumentCaptor<SysUser> captor = ArgumentCaptor.forClass(SysUser.class);
+        verify(userMapper).insert(captor.capture());
+        assertNull(captor.getValue().getPhone());
+
+        authService.logout("  ", null);
+        verify(jwtService, never()).deny(any());
+
+        RefreshToken revoked = storedToken("revoked-raw", "fam-out", LocalDateTime.now());
+        when(refreshTokenMapper.selectForUpdate(hash("revoked-raw"))).thenReturn(revoked);
+        authService.logout(null, "revoked-raw");
+        verify(refreshTokenMapper, never()).updateById(revoked);
+
+        when(passwordEncoder.matches("secret", "hash")).thenReturn(true);
+        when(jwtService.create(any())).thenReturn("access");
+        when(jwtService.expiresInSeconds()).thenReturn(900L);
+        when(userMapper.selectOne(any())).thenReturn(activeUser(8L, "alice", UserRole.USER));
+        request.setUsername("alice");
+        AuthTokensVO tokens = authService.login(request, null, null);
+        assertNotNull(tokens.accessToken());
     }
 
     private static SysUser activeUser(Long id, String username, UserRole role) {

@@ -13,8 +13,9 @@ stateDiagram-v2
   PENDING_REVIEW --> PENDING_PAYMENT: 药师通过并预占成功
   PENDING_REVIEW --> REVIEW_REJECTED: 药师拒绝
   PENDING_REVIEW --> CLOSED_STOCK_SHORTAGE: 审核通过但库存不足
-  PENDING_PAYMENT --> TO_PACK: 支付成功并确认出库
+  PENDING_PAYMENT --> PENDING_ACCEPT: 支付成功并确认出库
   PENDING_PAYMENT --> CLOSED_TIMEOUT: 30 分钟未支付，释放预占
+  PENDING_ACCEPT --> TO_PACK: 管理员接单
   TO_PACK --> TO_DISPATCH
   TO_DISPATCH --> DELIVERING
   DELIVERING --> COMPLETED
@@ -32,3 +33,5 @@ stateDiagram-v2
 ## 明确的岗位差距
 
 本项目不实现 Spring Cloud、Kubernetes、Elasticsearch 或伪造亿级流量。Java/JVM、操作系统、网络、算法题仍须独立学习；架构内容不能替代实习和真实团队经验。
+
+面试与 ADR 入口：[d1/README.md](d1/README.md)。

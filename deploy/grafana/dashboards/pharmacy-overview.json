@@ -1,0 +1,66 @@
+{
+  "title": "Pharmacy V2 Overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "JVM Heap Used",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{area=\"heap\",application=\"pharmacy-delivery-backend\"}", "legendFormat": "heap used" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Requests by Status",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "sum by (status) (rate(http_server_requests_seconds_count{application=\"pharmacy-delivery-backend\"}[5m]))", "legendFormat": "{{status}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HikariCP Connections",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "hikaricp_connections_active{application=\"pharmacy-delivery-backend\"}", "legendFormat": "active" },
+        { "expr": "hikaricp_connections_idle{application=\"pharmacy-delivery-backend\"}", "legendFormat": "idle" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Outstanding Events",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "pharmacy_outstanding_events", "legendFormat": "outstanding" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Order Business Failures",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "targets": [
+        { "expr": "increase(pharmacy_order_business_failures_total[15m])", "legendFormat": "order failures" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Inventory Conflicts",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "increase(pharmacy_inventory_conflicts_total[15m])", "legendFormat": "inventory conflicts" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Auth Failures",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        { "expr": "increase(pharmacy_auth_failures_total[15m])", "legendFormat": "auth failures" }
+      ]
+    }
+  ]
+}

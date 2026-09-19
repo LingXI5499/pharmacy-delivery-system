@@ -11,5 +11,11 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://localhost:8089', changeOrigin: true }
     }
+  },
+  preview: {
+    port: 4173,
+    proxy: {
+      '/api': { target: 'http://localhost:8089', changeOrigin: true }
+    }
   }
 })

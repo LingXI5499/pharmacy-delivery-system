@@ -41,7 +41,7 @@ public class CartServiceImpl implements CartService {
             BigDecimal subtotal = price.multiply(BigDecimal.valueOf(cart.getQuantity()));
             boolean selected = Integer.valueOf(1).equals(cart.getSelected());
             if (selected) { selectedCount += cart.getQuantity(); if (available) selectedAmount = selectedAmount.add(subtotal); }
-            items.add(new CartItemVO(cart.getId(), cart.getMedicineId(), m == null ? "商品已失效" : m.getMedicineName(), m == null ? null : m.getImageUrl(), price, m == null ? 0 : m.getStock(), cart.getQuantity(), selected, subtotal, available));
+            items.add(new CartItemVO(cart.getId(), cart.getMedicineId(), m == null ? "商品已失效" : m.getMedicineName(), m == null ? null : m.getImageUrl(), price, m == null ? 0 : m.getStock(), cart.getQuantity(), selected, subtotal, available, m != null && Integer.valueOf(1).equals(m.getPrescriptionRequired())));
         }
         return new CartVO(items, selectedCount, selectedAmount);
     }

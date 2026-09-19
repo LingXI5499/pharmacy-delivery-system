@@ -1,0 +1,16 @@
+# 本地教学演示档。先运行 database/init-demo-database.ps1 再建库与种子。
+# 启动：mvn spring-boot:run -Dspring-boot.run.profiles=demo
+# 库名固定为 pharmacy_delivery_demo，不会改写 pharmacy_delivery。
+spring:
+  datasource:
+    url: ${DEMO_DB_URL:jdbc:mysql://localhost:3306/pharmacy_delivery_demo?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${DEMO_DB_USERNAME:${DB_USERNAME:root}}
+    password: ${DEMO_DB_PASSWORD:${DB_PASSWORD:}}
+  flyway:
+    enabled: false
+  cache:
+    type: ${SPRING_CACHE_TYPE:simple}
+
+app:
+  messaging:
+    enabled: ${MESSAGING_ENABLED:false}

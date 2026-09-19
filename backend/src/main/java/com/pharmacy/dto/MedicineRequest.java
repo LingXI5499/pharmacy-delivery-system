@@ -21,5 +21,6 @@ public class MedicineRequest {
     @NotNull(message = "价格不能为空") @DecimalMin(value = "0.01", message = "价格必须大于 0") private BigDecimal price;
     @NotNull(message = "库存不能为空") @Min(value = 0, message = "库存不能小于 0") private Integer stock;
     @NotNull(message = "预警库存不能为空") @Min(value = 0, message = "预警库存不能小于 0") private Integer warningStock;
+    @NotNull(message = "处方药标记不能为空") @Min(0) @Max(1) private Integer prescriptionRequired;
     @NotNull(message = "状态不能为空") @Min(0) @Max(1) private Integer status;
 }

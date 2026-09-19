@@ -1,12 +1,12 @@
 
 export interface ApiResponse<T> { code: number; message: string; data: T; timestamp: string }
 export interface PageData<T> { records: T[]; current: number; size: number; total: number; pages: number }
-export type Role = 'USER' | 'ADMIN'
-export type OrderStatus = 'PENDING_ACCEPT' | 'TO_PACK' | 'TO_DISPATCH' | 'DELIVERING' | 'COMPLETED' | 'CANCELED'
+export type Role = 'USER' | 'PHARMACIST' | 'PURCHASER' | 'WAREHOUSE' | 'RIDER' | 'ADMIN'
+export type OrderStatus = 'PENDING_REVIEW' | 'PENDING_PAYMENT' | 'PENDING_ACCEPT' | 'TO_PACK' | 'TO_DISPATCH' | 'DELIVERING' | 'COMPLETED' | 'CANCELED' | 'REVIEW_REJECTED' | 'CLOSED_TIMEOUT' | 'CLOSED_STOCK_SHORTAGE' | 'REFUNDING' | 'REFUNDED'
 export interface User { id: number; username: string; nickname: string; phone?: string; role: Role; status: number }
 export interface Category { id: number; categoryName: string; categoryImage?: string; description?: string; sortNo: number; status: number; createTime?: string; updateTime?: string }
-export interface Medicine { id: number; categoryId: number; categoryName: string; medicineName: string; imageUrl?: string; description?: string; usageInstruction?: string; precautions?: string; price: number; stock: number; warningStock: number; status: number; isLowStock: boolean; createTime?: string; updateTime?: string }
-export interface CartItem { cartItemId: number; medicineId: number; medicineName: string; imageUrl?: string; price: number; stock: number; quantity: number; selected: boolean; subtotalAmount: number; available: boolean }
+export interface Medicine { id: number; categoryId: number; categoryName: string; medicineName: string; imageUrl?: string; description?: string; usageInstruction?: string; precautions?: string; price: number; stock: number; warningStock: number; prescriptionRequired?: number; status: number; isLowStock: boolean; createTime?: string; updateTime?: string }
+export interface CartItem { cartItemId: number; medicineId: number; medicineName: string; imageUrl?: string; price: number; stock: number; quantity: number; selected: boolean; subtotalAmount: number; available: boolean; prescriptionRequired: boolean }
 export interface Cart { items: CartItem[]; selectedCount: number; selectedAmount: number }
 export interface Address { id: number; receiverName: string; receiverPhone: string; province?: string; city?: string; district?: string; detailAddress: string; isDefault: number; createTime?: string; updateTime?: string }
 export interface Rider { id: number; riderName: string; phone: string; status: number; remark?: string; createTime?: string; updateTime?: string }

@@ -14,5 +14,6 @@ public final class ErrorCode {
     public static final int ORDER_STATUS_CONFLICT = 40902;
     public static final int CATEGORY_NOT_EMPTY = 40903;
     public static final int ADDRESS_NOT_OWNED = 40904;
+    public static final int RATE_LIMITED = 42901;
     public static final int SYSTEM_ERROR = 50000;
 }

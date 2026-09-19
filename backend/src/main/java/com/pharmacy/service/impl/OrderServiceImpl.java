@@ -11,6 +11,11 @@ import com.pharmacy.enums.OperatorType;
 import com.pharmacy.enums.OrderStatus;
 import com.pharmacy.exception.BusinessException;
 import com.pharmacy.mapper.*;
+import com.pharmacy.inventory.InventoryService;
+import com.pharmacy.prescription.PrescriptionService;
+import com.pharmacy.messaging.OrderPaymentPendingEvent;
+import com.pharmacy.payment.RefundService;
+import org.springframework.context.ApplicationEventPublisher;
 import com.pharmacy.service.OrderService;
 import com.pharmacy.util.OrderNoUtil;
 import com.pharmacy.util.OrderStateMachine;
@@ -21,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,12 +42,26 @@ public class OrderServiceImpl implements OrderService {
     private final MedicineMapper medicineMapper;
     private final DeliveryRiderMapper riderMapper;
     private final SysUserMapper userMapper;
+    private final InventoryService inventoryService;
+    private final PrescriptionService prescriptionService;
+    private final ApplicationEventPublisher events;
+    private final RefundService refundService;
     @Value("${app.order.delivery-fee:5.00}")
     private BigDecimal deliveryFee;
+    @Value("${app.order.payment-timeout:30m}")
+    private Duration paymentTimeout;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> create(Long userId, OrderCreateRequest request) {
+    public Map<String, Object> create(Long userId, OrderCreateRequest request, String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank() || idempotencyKey.length() > 80) {
+            throw new BusinessException(ErrorCode.PARAM_INVALID, "Idempotency-Key 必须为 1-80 个字符");
+        }
+        // A database row lock is the correctness boundary. Redis is never required
+        // for order idempotency and concurrent requests from the same user serialize here.
+        if (userMapper.lockById(userId) == null) throw new BusinessException(ErrorCode.UNAUTHORIZED, "用户不存在");
+        PharmacyOrder replay = orderMapper.findByIdempotencyKey(userId, idempotencyKey);
+        if (replay != null) return creationResult(replay);
         UserAddress address = addressMapper.selectById(request.getAddressId());
         if (address == null || !Objects.equals(address.getUserId(), userId)) {
             throw new BusinessException(ErrorCode.ADDRESS_NOT_OWNED, "当前地址不属于登录用户");
@@ -56,29 +76,40 @@ public class OrderServiceImpl implements OrderService {
         for (ShoppingCart cart : carts) {
             Medicine m = medicineMap.get(cart.getMedicineId());
             if (m == null || !Integer.valueOf(1).equals(m.getStatus())) throw new BusinessException(ErrorCode.STOCK_OR_STATUS_CONFLICT, "药品已下架或不存在");
-            int affected = medicineMapper.decreaseStock(m.getId(), cart.getQuantity());
-            if (affected != 1) throw new BusinessException(ErrorCode.STOCK_OR_STATUS_CONFLICT, "药品库存不足：" + m.getMedicineName());
             productAmount = productAmount.add(m.getPrice().multiply(BigDecimal.valueOf(cart.getQuantity())));
+        }
+        boolean prescriptionRequired = medicines.stream().anyMatch(m -> Integer.valueOf(1).equals(m.getPrescriptionRequired()));
+        if (prescriptionRequired && request.getPrescriptionId() == null) {
+            throw new BusinessException(ErrorCode.PARAM_INVALID, "订单包含处方药，请先上传处方");
         }
         PharmacyOrder order = new PharmacyOrder();
         order.setOrderNo(OrderNoUtil.next());
-        order.setUserId(userId); order.setAddressId(address.getId());
+        order.setUserId(userId); order.setIdempotencyKey(idempotencyKey); order.setPrescriptionId(request.getPrescriptionId()); order.setAddressId(address.getId());
         order.setReceiverName(address.getReceiverName()); order.setReceiverPhone(address.getReceiverPhone()); order.setReceiverAddress(fullAddress(address));
         order.setProductAmount(productAmount); order.setDeliveryFee(deliveryFee); order.setOrderAmount(productAmount.add(deliveryFee));
-        order.setOrderStatus(OrderStatus.PENDING_ACCEPT); order.setUserRemark(blank(request.getUserRemark()));
+        order.setOrderStatus(prescriptionRequired ? OrderStatus.PENDING_REVIEW : OrderStatus.PENDING_PAYMENT);
+        order.setPaymentDeadline(prescriptionRequired ? null : LocalDateTime.now().plus(paymentTimeout));
+        order.setUserRemark(blank(request.getUserRemark()));
         order.setCreateTime(LocalDateTime.now()); order.setUpdateTime(LocalDateTime.now());
         orderMapper.insert(order);
+        List<PharmacyOrderItem> orderItems = new ArrayList<>();
         for (ShoppingCart cart : carts) {
             Medicine m = medicineMap.get(cart.getMedicineId());
             PharmacyOrderItem item = new PharmacyOrderItem();
             item.setOrderId(order.getId()); item.setMedicineId(m.getId()); item.setMedicineName(m.getMedicineName()); item.setMedicineImage(m.getImageUrl()); item.setMedicinePrice(m.getPrice()); item.setQuantity(cart.getQuantity()); item.setSubtotalAmount(m.getPrice().multiply(BigDecimal.valueOf(cart.getQuantity()))); item.setCreateTime(LocalDateTime.now());
             itemMapper.insert(item);
+            orderItems.add(item);
         }
-        addLog(order.getId(), null, OrderStatus.PENDING_ACCEPT, OperatorType.SYSTEM, null, "用户提交订单");
+        if (prescriptionRequired) {
+            prescriptionService.validateForOrder(request.getPrescriptionId(), userId, orderItems);
+            prescriptionService.attach(request.getPrescriptionId(), order.getId());
+        }
+        if (!prescriptionRequired) inventoryService.reserve(order.getId(), orderItems, order.getPaymentDeadline(), userId);
+        addLog(order.getId(), null, order.getOrderStatus(), OperatorType.SYSTEM, null,
+                prescriptionRequired ? "用户提交处方药订单，等待审核" : "用户提交订单，库存已预占");
+        if (!prescriptionRequired) events.publishEvent(new OrderPaymentPendingEvent(order.getId(), order.getOrderNo(), order.getPaymentDeadline()));
         cartMapper.deleteByIds(cartIds);
-        Map<String,Object> result = new LinkedHashMap<>();
-        result.put("orderId", order.getId()); result.put("orderNo", order.getOrderNo()); result.put("orderStatus", order.getOrderStatus()); result.put("orderAmount", order.getOrderAmount());
-        return result;
+        return creationResult(order);
     }
 
     @Override
@@ -102,7 +133,7 @@ public class OrderServiceImpl implements OrderService {
     public void userCancel(Long userId, Long orderId, ReasonRequest request) {
         PharmacyOrder order = get(orderId);
         if (!Objects.equals(order.getUserId(), userId)) throw new BusinessException(ErrorCode.FORBIDDEN, "无权取消该订单");
-        cancelInternal(order, EnumSet.of(OrderStatus.PENDING_ACCEPT), request.getReason(), OperatorType.USER, userId);
+        cancelInternal(order, EnumSet.of(OrderStatus.PENDING_REVIEW, OrderStatus.PENDING_PAYMENT, OrderStatus.PENDING_ACCEPT), request.getReason(), OperatorType.USER, userId);
     }
 
     @Override
@@ -125,7 +156,7 @@ public class OrderServiceImpl implements OrderService {
     @Override @Transactional(rollbackFor=Exception.class) public void pack(Long adminId,Long orderId,RemarkRequest request){transition(get(orderId),OrderStatus.TO_PACK,OrderStatus.TO_DISPATCH,adminId,blank(request.getAdminRemark()),null);}
     @Override @Transactional(rollbackFor=Exception.class) public void dispatch(Long adminId,Long orderId,DispatchRequest request){DeliveryRider rider=riderMapper.selectById(request.getRiderId());if(rider==null||!Integer.valueOf(1).equals(rider.getStatus()))throw new BusinessException(ErrorCode.PARAM_INVALID,"骑手不存在或当前不可接单");transition(get(orderId),OrderStatus.TO_DISPATCH,OrderStatus.DELIVERING,adminId,blank(request.getAdminRemark()),rider);}
     @Override @Transactional(rollbackFor=Exception.class) public void complete(Long adminId,Long orderId,RemarkRequest request){transition(get(orderId),OrderStatus.DELIVERING,OrderStatus.COMPLETED,adminId,blank(request.getAdminRemark()),null);}
-    @Override @Transactional(rollbackFor=Exception.class) public void adminCancel(Long adminId,Long orderId,ReasonRequest request){cancelInternal(get(orderId),EnumSet.of(OrderStatus.PENDING_ACCEPT,OrderStatus.TO_PACK,OrderStatus.TO_DISPATCH),request.getReason(),OperatorType.ADMIN,adminId);}
+    @Override @Transactional(rollbackFor=Exception.class) public void adminCancel(Long adminId,Long orderId,ReasonRequest request){PharmacyOrder order=get(orderId);if(EnumSet.of(OrderStatus.TO_PACK,OrderStatus.TO_DISPATCH).contains(order.getOrderStatus())){refundService.requestByAdmin(adminId,orderId,request.getReason());return;}cancelInternal(order,EnumSet.of(OrderStatus.PENDING_REVIEW,OrderStatus.PENDING_PAYMENT,OrderStatus.PENDING_ACCEPT),request.getReason(),OperatorType.ADMIN,adminId);}
 
     private void transition(PharmacyOrder order, OrderStatus expected, OrderStatus target, Long adminId, String remark, DeliveryRider rider) {
         if (order.getOrderStatus() != expected || !OrderStateMachine.canTransition(order.getOrderStatus(),target)) throw new BusinessException(ErrorCode.ORDER_STATUS_CONFLICT,"当前订单状态不允许该操作");
@@ -140,12 +171,12 @@ public class OrderServiceImpl implements OrderService {
 
     private void cancelInternal(PharmacyOrder order, Set<OrderStatus> allowed, String reason, OperatorType operatorType, Long operatorId) {
         if (!allowed.contains(order.getOrderStatus()) || !OrderStateMachine.canTransition(order.getOrderStatus(),OrderStatus.CANCELED)) throw new BusinessException(ErrorCode.ORDER_STATUS_CONFLICT,"当前订单状态不允许取消");
-        List<PharmacyOrderItem> items=itemMapper.selectList(new LambdaQueryWrapper<PharmacyOrderItem>().eq(PharmacyOrderItem::getOrderId,order.getId()));
-        for(PharmacyOrderItem item:items) if(item.getMedicineId()!=null) medicineMapper.restoreStock(item.getMedicineId(),item.getQuantity());
+        inventoryService.release(order.getId(), reason, operatorId);
         OrderStatus before=order.getOrderStatus();order.setOrderStatus(OrderStatus.CANCELED);order.setCancelReason(reason);order.setCanceledTime(LocalDateTime.now());order.setUpdateTime(LocalDateTime.now());if(operatorType==OperatorType.ADMIN)order.setAdminRemark(reason);orderMapper.updateById(order);addLog(order.getId(),before,OrderStatus.CANCELED,operatorType,operatorId,reason);
     }
 
     private PharmacyOrder get(Long id){PharmacyOrder order=orderMapper.selectById(id);if(order==null)throw new BusinessException(ErrorCode.NOT_FOUND,"订单不存在");return order;}
+    private Map<String,Object> creationResult(PharmacyOrder order){Map<String,Object> result=new LinkedHashMap<>();result.put("orderId",order.getId());result.put("orderNo",order.getOrderNo());result.put("orderStatus",order.getOrderStatus());result.put("orderAmount",order.getOrderAmount());return result;}
     private void addLog(Long orderId,OrderStatus before,OrderStatus after,OperatorType type,Long operatorId,String remark){OrderStatusLog log=new OrderStatusLog();log.setOrderId(orderId);log.setBeforeStatus(before);log.setAfterStatus(after);log.setOperatorType(type);log.setOperatorId(operatorId);log.setRemark(remark);log.setCreateTime(LocalDateTime.now());logMapper.insert(log);}
     private void addStatusCondition(LambdaQueryWrapper<PharmacyOrder> q,String status){if(status==null||status.isBlank())return;try{q.eq(PharmacyOrder::getOrderStatus,OrderStatus.valueOf(status));}catch(IllegalArgumentException e){throw new BusinessException(ErrorCode.PARAM_INVALID,"订单状态参数不合法");}}
     private Map<Long,SysUser> userMap(List<PharmacyOrder> orders){List<Long> ids=orders.stream().map(PharmacyOrder::getUserId).distinct().toList();if(ids.isEmpty())return Map.of();return userMapper.selectBatchIds(ids).stream().collect(Collectors.toMap(SysUser::getId,Function.identity()));}

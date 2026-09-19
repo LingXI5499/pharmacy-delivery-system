@@ -16,6 +16,8 @@ public class PharmacyOrder {
     private Long id;
     private String orderNo;
     private Long userId;
+    private String idempotencyKey;
+    private Long prescriptionId;
     private Long addressId;
     private String receiverName;
     private String receiverPhone;
@@ -24,6 +26,8 @@ public class PharmacyOrder {
     private BigDecimal deliveryFee;
     private BigDecimal orderAmount;
     private OrderStatus orderStatus;
+    private LocalDateTime paymentDeadline;
+    private LocalDateTime paidTime;
     private Long riderId;
     private String riderName;
     private String riderPhone;

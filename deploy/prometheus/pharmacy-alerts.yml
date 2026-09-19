@@ -1,0 +1,42 @@
+groups:
+  - name: pharmacy-v2
+    rules:
+      - alert: PharmacyProcessDown
+        expr: up{job="pharmacy-backend"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "pharmacy backend scrape is down"
+          recovery: "Check systemd pharmacy-backend.service and loopback scrape path"
+
+      - alert: PharmacyHighHttp5xx
+        expr: sum(rate(http_server_requests_seconds_count{status=~"5..",application="pharmacy-delivery-backend"}[5m])) > 0.2
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "HTTP 5xx rate elevated"
+          recovery: "Inspect structured logs by traceId and errorCode; restore dependent services if needed"
+
+      - alert: PharmacyInventoryConflicts
+        expr: increase(pharmacy_inventory_conflicts_total[10m]) > 20
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Inventory conflict spike"
+          recovery: "Check FEFO stock, reservation rows, and recent order failures"
+
+      - alert: PharmacyOutstandingEvents
+        expr: pharmacy_outstanding_events > 50
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Unfinished Modulith events accumulated"
+          recovery: "Verify RabbitMQ health and event replay job; do not delete EVENT_PUBLICATION rows"
+
+      - alert: PharmacyJvmMemoryHigh
+        expr: jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"} > 0.85
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "JVM heap usage above 85%"
+          recovery: "Review GC logs and traffic; restart only after backlog is safe"

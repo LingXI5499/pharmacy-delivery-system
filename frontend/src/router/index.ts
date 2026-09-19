@@ -21,6 +21,9 @@ const router = createRouter({
         { path: 'profile', name: 'profile', component: () => import('@/views/front/ProfileView.vue'), meta: { requiresAuth: true } }
       ]
     },
+    { path:'/pharmacist',name:'pharmacist-workbench',component:()=>import('@/views/workbench/PharmacistView.vue'),meta:{requiresAuth:true,roles:['PHARMACIST','ADMIN']} },
+    { path:'/purchaser',name:'purchaser-workbench',component:()=>import('@/views/workbench/PurchaserView.vue'),meta:{requiresAuth:true,roles:['PURCHASER','ADMIN']} },
+    { path:'/warehouse',name:'warehouse-workbench',component:()=>import('@/views/workbench/WarehouseView.vue'),meta:{requiresAuth:true,roles:['WAREHOUSE','ADMIN']} },
     {
       path: '/admin', component: () => import('@/layouts/AdminLayout.vue'), meta: { requiresAuth: true, admin: true }, children: [
         { path: '', redirect: '/admin/dashboard' },
@@ -31,6 +34,7 @@ const router = createRouter({
         { path: 'orders', name: 'admin-orders', component: () => import('@/views/admin/OrdersView.vue') },
         { path: 'orders/:id', name: 'admin-order-detail', component: () => import('@/views/admin/OrderDetailView.vue') },
         { path: 'riders', name: 'admin-riders', component: () => import('@/views/admin/RidersView.vue') },
+        { path: 'purchase-orders', name: 'admin-purchase-orders', component: () => import('@/views/admin/PurchaseOrdersView.vue'), meta: { title: '采购审批' } },
         { path: 'users', name: 'admin-users', component: () => import('@/views/admin/UsersView.vue') },
         { path: 'profile', name: 'admin-profile', component: () => import('@/views/admin/ProfileView.vue') }
       ]
@@ -43,12 +47,14 @@ router.beforeEach(async (to) => {
   const store = useUserStore()
   const needAuth = to.matched.some(item => item.meta.requiresAuth)
   const needAdmin = to.matched.some(item => item.meta.admin)
+  const allowedRoles = to.matched.flatMap(item => (item.meta.roles as string[]|undefined) || [])
   if ((needAuth || to.meta.guest) && !store.initialized) await store.loadMe()
   if (needAuth && !store.user) return { name: 'login', query: { redirect: to.fullPath } }
   if (needAdmin && store.user?.role !== 'ADMIN') {
     ElMessage.warning('该页面仅药品管理员可访问')
     return '/home'
   }
+  if (allowedRoles.length && store.user && !allowedRoles.includes(store.user.role)) { ElMessage.warning('当前角色无权访问该工作台'); return '/home' }
   if (to.meta.guest && store.user) return store.user.role === 'ADMIN' ? '/admin/dashboard' : '/home'
   return true
 })

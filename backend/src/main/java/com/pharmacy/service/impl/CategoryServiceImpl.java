@@ -14,6 +14,7 @@ import com.pharmacy.mapper.MedicineMapper;
 import com.pharmacy.service.CategoryService;
 import com.pharmacy.vo.CategoryVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 
@@ -32,6 +33,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @CacheEvict(cacheNames={"catalogCategories","catalogPages","catalogMedicine"},allEntries=true)
     public CategoryVO create(CategoryRequest request) {
         long exists = categoryMapper.selectCount(new LambdaQueryWrapper<MedicineCategory>().eq(MedicineCategory::getCategoryName, request.getCategoryName()));
         if (exists > 0) throw new BusinessException(ErrorCode.PARAM_INVALID, "分类名称已存在");
@@ -40,6 +42,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @CacheEvict(cacheNames={"catalogCategories","catalogPages","catalogMedicine"},allEntries=true)
     public CategoryVO update(Long id, CategoryRequest request) {
         MedicineCategory c = get(id);
         long exists = categoryMapper.selectCount(new LambdaQueryWrapper<MedicineCategory>().eq(MedicineCategory::getCategoryName, request.getCategoryName()).ne(MedicineCategory::getId,id));
@@ -48,6 +51,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @CacheEvict(cacheNames={"catalogCategories","catalogPages","catalogMedicine"},allEntries=true)
     public void delete(Long id) {
         get(id);
         long count = medicineMapper.selectCount(new LambdaQueryWrapper<Medicine>().eq(Medicine::getCategoryId,id));
@@ -56,6 +60,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @CacheEvict(cacheNames={"catalogCategories","catalogPages","catalogMedicine"},allEntries=true)
     public void updateStatus(Long id, Integer status) { MedicineCategory c=get(id); c.setStatus(status); c.setUpdateTime(LocalDateTime.now()); categoryMapper.updateById(c); }
     private MedicineCategory get(Long id) { MedicineCategory c=categoryMapper.selectById(id); if(c==null) throw new BusinessException(ErrorCode.NOT_FOUND,"分类不存在"); return c; }
     private static void copy(CategoryRequest r, MedicineCategory c) { c.setCategoryName(r.getCategoryName()); c.setCategoryImage(blank(r.getCategoryImage())); c.setDescription(blank(r.getDescription())); c.setSortNo(r.getSortNo()); c.setStatus(r.getStatus()); }

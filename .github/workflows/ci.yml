@@ -39,6 +39,14 @@ jobs:
           MESSAGING_ENABLED: 'false'
           SPRING_CACHE_TYPE: simple
         run: mvn --batch-mode verify
+      - name: Upload JaCoCo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: backend/target/site/jacoco/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Flyway and application startup smoke test
         working-directory: backend
         env:

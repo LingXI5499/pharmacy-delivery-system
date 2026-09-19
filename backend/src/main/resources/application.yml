@@ -63,7 +63,7 @@ mybatis-plus:
 
 app:
   cors:
-    allowed-origin: http://localhost:5173
+    allowed-origin: http://localhost:5173,http://localhost:5174
   order:
     delivery-fee: 5.00
     payment-timeout: 30m

@@ -1,12 +1,18 @@
 package com.pharmacy.prescription;
 
 import com.pharmacy.common.ErrorCode;
+import com.pharmacy.entity.PharmacyOrder;
+import com.pharmacy.entity.PharmacyOrderItem;
+import com.pharmacy.enums.OrderStatus;
 import com.pharmacy.exception.BusinessException;
 import com.pharmacy.inventory.InventoryService;
 import com.pharmacy.mapper.OrderStatusLogMapper;
 import com.pharmacy.mapper.PharmacyOrderItemMapper;
 import com.pharmacy.mapper.PharmacyOrderMapper;
+import com.pharmacy.messaging.OrderPaymentPendingEvent;
+import com.pharmacy.support.MybatisPlusLambdaInit;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -32,12 +39,21 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class PrescriptionServiceTest {
+    @BeforeAll
+    static void initLambdaCache() {
+        MybatisPlusLambdaInit.entities(Prescription.class, PrescriptionItem.class, PharmacyOrderItem.class);
+    }
+
     private static final byte[] PDF = "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n".getBytes();
     private static final byte[] PNG = new byte[]{
             (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
@@ -193,6 +209,227 @@ class PrescriptionServiceTest {
         ArgumentCaptor<Prescription> captor = ArgumentCaptor.forClass(Prescription.class);
         verify(mapper).insert(captor.capture());
         assertEquals(saved.getStorageKey(), captor.getValue().getStorageKey());
+    }
+
+    @Test
+    void validateForOrderEnforcesOwnerQtyAndUnusedStatus() {
+        Prescription p = new Prescription();
+        p.setId(5L);
+        p.setUserId(1L);
+        p.setStatus("PENDING_REVIEW");
+        when(mapper.selectById(5L)).thenReturn(p);
+        PrescriptionItem allowed = new PrescriptionItem();
+        allowed.setMedicineId(11L);
+        allowed.setPrescribedQty(2);
+        when(itemMapper.selectList(any())).thenReturn(List.of(allowed));
+        PharmacyOrderItem orderItem = new PharmacyOrderItem();
+        orderItem.setMedicineId(11L);
+        orderItem.setQuantity(2);
+        service.validateForOrder(5L, 1L, List.of(orderItem));
+
+        orderItem.setQuantity(3);
+        assertEquals(ErrorCode.PARAM_INVALID,
+                assertThrows(BusinessException.class, () -> service.validateForOrder(5L, 1L, List.of(orderItem))).getCode());
+        p.setOrderId(9L);
+        assertEquals(ErrorCode.ORDER_STATUS_CONFLICT,
+                assertThrows(BusinessException.class, () -> service.validateForOrder(5L, 1L, List.of(orderItem))).getCode());
+        assertEquals(ErrorCode.NOT_FOUND,
+                assertThrows(BusinessException.class, () -> service.validateForOrder(5L, 99L, List.of(orderItem))).getCode());
+    }
+
+    @Test
+    void reviewApprovesAndReservesOrClosesForShortage() {
+        Prescription p = pendingAttached(5L, 9L);
+        when(mapper.lockById(5L)).thenReturn(p);
+        PharmacyOrder order = new PharmacyOrder();
+        order.setId(9L);
+        order.setOrderNo("O9");
+        order.setOrderStatus(OrderStatus.PENDING_REVIEW);
+        when(orderMapper.selectById(9L)).thenReturn(order);
+        PharmacyOrderItem item = new PharmacyOrderItem();
+        item.setMedicineId(11L);
+        item.setQuantity(1);
+        when(orderItemMapper.selectList(any())).thenReturn(List.of(item));
+        when(inventoryService.canReserve(anyList())).thenReturn(true);
+
+        service.review(3L, 5L, true, null);
+        verify(inventoryService).reserve(eq(9L), anyList(), any(), eq(3L));
+        assertEquals(OrderStatus.PENDING_PAYMENT, order.getOrderStatus());
+        verify(events).publishEvent(any(OrderPaymentPendingEvent.class));
+
+        Prescription p2 = pendingAttached(6L, 10L);
+        when(mapper.lockById(6L)).thenReturn(p2);
+        PharmacyOrder shortOrder = new PharmacyOrder();
+        shortOrder.setId(10L);
+        shortOrder.setOrderStatus(OrderStatus.PENDING_REVIEW);
+        when(orderMapper.selectById(10L)).thenReturn(shortOrder);
+        when(inventoryService.canReserve(anyList())).thenReturn(false);
+        service.review(3L, 6L, true, null);
+        assertEquals(OrderStatus.CLOSED_STOCK_SHORTAGE, shortOrder.getOrderStatus());
+        verify(inventoryService, never()).reserve(eq(10L), anyList(), any(), anyLong());
+    }
+
+    @Test
+    void reviewRejectRequiresReason() {
+        Prescription p = pendingAttached(5L, 9L);
+        when(mapper.lockById(5L)).thenReturn(p);
+        PharmacyOrder order = new PharmacyOrder();
+        order.setId(9L);
+        order.setOrderStatus(OrderStatus.PENDING_REVIEW);
+        when(orderMapper.selectById(9L)).thenReturn(order);
+        assertEquals(ErrorCode.PARAM_INVALID,
+                assertThrows(BusinessException.class, () -> service.review(3L, 5L, false, " ")).getCode());
+        service.review(3L, 5L, false, "字迹不清");
+        assertEquals(OrderStatus.REVIEW_REJECTED, order.getOrderStatus());
+        assertEquals("REJECTED", p.getStatus());
+    }
+
+    @Test
+    void pendingListsWaitingOrders() {
+        when(mapper.selectList(any())).thenReturn(List.of());
+        assertTrue(service.pending().isEmpty());
+        service.attach(5L, 9L);
+        verify(mapper).update(eq(null), any());
+    }
+
+    @Test
+    void uploadRejectsInvalidItemsAndNullFile() {
+        MockMultipartFile pdf = new MockMultipartFile("file", "rx.pdf", "application/pdf", PDF);
+        assertEquals(ErrorCode.PARAM_INVALID,
+                assertThrows(BusinessException.class, () -> service.upload(1L, null, List.of(1L), List.of(1))).getCode());
+        assertEquals(ErrorCode.PARAM_INVALID,
+                assertThrows(BusinessException.class, () -> service.upload(1L, pdf, List.of(), List.of())).getCode());
+        assertEquals(ErrorCode.PARAM_INVALID,
+                assertThrows(BusinessException.class, () -> service.upload(1L, pdf, List.of(1L), List.of(1, 2))).getCode());
+        assertEquals(ErrorCode.PARAM_INVALID,
+                assertThrows(BusinessException.class, () -> service.upload(1L, pdf, List.of(1L), List.of(0))).getCode());
+        assertEquals(ErrorCode.PARAM_INVALID,
+                assertThrows(BusinessException.class, () -> service.upload(1L, pdf, List.of(1L), java.util.Arrays.asList((Integer) null))).getCode());
+        assertEquals(ErrorCode.PARAM_INVALID,
+                assertThrows(BusinessException.class, () -> service.upload(1L, pdf, null, List.of(1))).getCode());
+    }
+
+    @Test
+    void uploadWrapsIoFailureAndDeletesOnRollback() throws Exception {
+        MultipartFile broken = mock(MultipartFile.class);
+        when(broken.isEmpty()).thenReturn(false);
+        when(broken.getSize()).thenReturn(12L);
+        when(broken.getInputStream()).thenThrow(new IOException("disk"));
+        assertEquals(ErrorCode.SYSTEM_ERROR,
+                assertThrows(BusinessException.class, () -> service.upload(1L, broken, List.of(1L), List.of(1))).getCode());
+
+        MockMultipartFile file = new MockMultipartFile("file", null, "application/pdf", PDF);
+        when(mapper.insert(any(Prescription.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, Prescription.class).setId(102L);
+            return 1;
+        });
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            Prescription saved = service.upload(3L, file, List.of(1L), List.of(1));
+            assertEquals("prescription", saved.getOriginalFilename());
+            Path stored = tempDir.resolve(saved.getStorageKey());
+            assertTrue(Files.isRegularFile(stored));
+            for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
+                sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+            }
+            assertFalse(Files.exists(stored));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void uploadAcceptsJpeg() {
+        byte[] jpeg = new byte[]{
+                (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+                0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, (byte) 0xFF, (byte) 0xD9
+        };
+        MockMultipartFile file = new MockMultipartFile("file", "shot.jpg", "image/jpeg", jpeg);
+        when(mapper.insert(any(Prescription.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, Prescription.class).setId(103L);
+            return 1;
+        });
+        Prescription saved = withTransaction(() -> service.upload(2L, file, List.of(1L), List.of(1)));
+        assertEquals("image/jpeg", saved.getContentType());
+        assertTrue(saved.getStorageKey().endsWith(".jpg"));
+    }
+
+    @Test
+    void reviewRejectsIllegalPrescriptionAndOrderState() {
+        when(mapper.lockById(5L)).thenReturn(null);
+        assertEquals(ErrorCode.NOT_FOUND,
+                assertThrows(BusinessException.class, () -> service.review(3L, 5L, true, null)).getCode());
+
+        Prescription pending = pendingAttached(5L, null);
+        pending.setStatus("PENDING_REVIEW");
+        when(mapper.lockById(5L)).thenReturn(pending);
+        assertEquals(ErrorCode.ORDER_STATUS_CONFLICT,
+                assertThrows(BusinessException.class, () -> service.review(3L, 5L, true, null)).getCode());
+
+        Prescription approved = pendingAttached(5L, 9L);
+        approved.setStatus("APPROVED");
+        when(mapper.lockById(5L)).thenReturn(approved);
+        assertEquals(ErrorCode.ORDER_STATUS_CONFLICT,
+                assertThrows(BusinessException.class, () -> service.review(3L, 5L, true, null)).getCode());
+
+        Prescription attached = pendingAttached(5L, 9L);
+        when(mapper.lockById(5L)).thenReturn(attached);
+        when(orderMapper.selectById(9L)).thenReturn(null);
+        assertEquals(ErrorCode.ORDER_STATUS_CONFLICT,
+                assertThrows(BusinessException.class, () -> service.review(3L, 5L, true, null)).getCode());
+
+        PharmacyOrder wrongStatus = new PharmacyOrder();
+        wrongStatus.setId(9L);
+        wrongStatus.setOrderStatus(OrderStatus.PENDING_PAYMENT);
+        when(orderMapper.selectById(9L)).thenReturn(wrongStatus);
+        assertEquals(ErrorCode.ORDER_STATUS_CONFLICT,
+                assertThrows(BusinessException.class, () -> service.review(3L, 5L, true, null)).getCode());
+    }
+
+    @Test
+    void validateRejectsUnknownMedicineAndUsedStatus() {
+        Prescription p = new Prescription();
+        p.setId(5L);
+        p.setUserId(1L);
+        p.setStatus("APPROVED");
+        when(mapper.selectById(5L)).thenReturn(p);
+        PharmacyOrderItem orderItem = new PharmacyOrderItem();
+        orderItem.setMedicineId(11L);
+        orderItem.setQuantity(1);
+        assertEquals(ErrorCode.ORDER_STATUS_CONFLICT,
+                assertThrows(BusinessException.class, () -> service.validateForOrder(5L, 1L, List.of(orderItem))).getCode());
+
+        p.setStatus("PENDING_REVIEW");
+        PrescriptionItem allowed = new PrescriptionItem();
+        allowed.setMedicineId(12L);
+        allowed.setPrescribedQty(2);
+        when(itemMapper.selectList(any())).thenReturn(List.of(allowed));
+        assertEquals(ErrorCode.PARAM_INVALID,
+                assertThrows(BusinessException.class, () -> service.validateForOrder(5L, 1L, List.of(orderItem))).getCode());
+
+        when(mapper.selectById(8L)).thenReturn(null);
+        assertEquals(ErrorCode.NOT_FOUND,
+                assertThrows(BusinessException.class, () -> service.validateForOrder(8L, 1L, List.of(orderItem))).getCode());
+    }
+
+    @Test
+    void resourceAndGetAuthorizedRejectMissing() {
+        when(mapper.selectById(5L)).thenReturn(null);
+        assertEquals(ErrorCode.NOT_FOUND,
+                assertThrows(BusinessException.class, () -> service.getAuthorized(5L, 1L, true)).getCode());
+        Prescription p = new Prescription();
+        p.setStorageKey("missing.pdf");
+        assertEquals(ErrorCode.NOT_FOUND,
+                assertThrows(BusinessException.class, () -> service.resource(p)).getCode());
+    }
+
+    private static Prescription pendingAttached(Long id, Long orderId) {
+        Prescription p = new Prescription();
+        p.setId(id);
+        p.setOrderId(orderId);
+        p.setStatus("PENDING_REVIEW");
+        p.setUserId(1L);
+        return p;
     }
 
     private static <T> T withTransaction(Supplier<T> action) {

@@ -166,6 +166,12 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>0.8.13</version>
+                <configuration>
+                    <excludes>
+                        <!-- Spring Boot 入口，无业务分支。 -->
+                        <exclude>com/pharmacy/PharmacyDeliveryApplication.class</exclude>
+                    </excludes>
+                </configuration>
                 <executions>
                     <execution>
                         <goals><goal>prepare-agent</goal></goals>
@@ -174,6 +180,54 @@
                         <id>report</id>
                         <phase>verify</phase>
                         <goals><goal>report</goal></goals>
+                        <configuration>
+                            <formats>
+                                <format>HTML</format>
+                                <format>XML</format>
+                                <format>CSV</format>
+                            </formats>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>jacoco-check</id>
+                        <phase>verify</phase>
+                        <goals><goal>check</goal></goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.70</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                                <rule>
+                                    <element>CLASS</element>
+                                    <includes>
+                                        <include>com.pharmacy.service.impl.OrderServiceImpl</include>
+                                        <include>com.pharmacy.service.impl.AuthServiceImpl</include>
+                                        <include>com.pharmacy.inventory.InventoryServiceImpl</include>
+                                        <include>com.pharmacy.inventory.InventoryCountService</include>
+                                        <include>com.pharmacy.payment.PaymentService</include>
+                                        <include>com.pharmacy.payment.RefundService</include>
+                                        <include>com.pharmacy.prescription.PrescriptionService</include>
+                                        <include>com.pharmacy.procurement.ProcurementService</include>
+                                        <include>com.pharmacy.messaging.OrderTimeoutService</include>
+                                        <include>com.pharmacy.security.PermissionService</include>
+                                    </includes>
+                                    <limits>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.80</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

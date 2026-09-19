@@ -8,6 +8,7 @@ import com.pharmacy.security.AuthenticatedUser;
 import com.pharmacy.service.AuthService;
 import com.pharmacy.vo.AuthTokensVO;
 import com.pharmacy.vo.UserVO;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -28,6 +29,7 @@ class AuthControllerTest {
     private AuthService service; private MockMvc mvc;
     private final UserVO user=new UserVO(1L,"admin","管理员",null,UserRole.ADMIN,1);
     @BeforeEach void setup(){service=mock(AuthService.class);AuthController c=new AuthController(service);ReflectionTestUtils.setField(c,"refreshTtl",Duration.ofDays(7));ReflectionTestUtils.setField(c,"secureCookie",false);mvc=MockMvcBuilders.standaloneSetup(c).setControllerAdvice(new GlobalExceptionHandler(org.mockito.Mockito.mock(com.pharmacy.observability.PharmacyBusinessMetrics.class))).build();SecurityContextHolder.clearContext();}
+    @AfterEach void tearDown(){SecurityContextHolder.clearContext();}
     @Test void register()throws Exception{when(service.register(any())).thenReturn(user);perform(post("/api/auth/register"),"{\"username\":\"user123\",\"password\":\"123456\",\"nickname\":\"测试\"}").andExpect(status().isOk()).andExpect(jsonPath("$.data.username").value("admin"));}
     @Test void registerDuplicate()throws Exception{when(service.register(any())).thenThrow(new BusinessException(ErrorCode.USERNAME_EXISTS,"该账号已被注册"));perform(post("/api/auth/register"),"{\"username\":\"user123\",\"password\":\"123456\",\"nickname\":\"测试\"}").andExpect(jsonPath("$.code").value(ErrorCode.USERNAME_EXISTS));}
     @Test void registerValidation()throws Exception{perform(post("/api/auth/register"),"{}").andExpect(status().isBadRequest());}

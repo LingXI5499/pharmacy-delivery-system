@@ -1,25 +1,29 @@
 # 速安药房 V2 剩余开发任务计划
 
-基线日期：2026-09-15  
-集成分支：`codex/v2-enterprise-upgrade`  
+基线日期：2026-09-19
+
+集成分支：`codex/v2-enterprise-upgrade` @ `38df924`
+
 完整计划周期：12～16 周，每周 20～25 小时  
-当前按 Definition of Done 评估：约 50%  
-预计剩余：6～9 周，约 150～215 小时
+当前结论：功能任务 Q1～D1 已合入集成分支。P0 **决定不合入 `main`**，发布形态为阶段性演示版。详见 [p0-final-gate.md](p0-final-gate.md)。
 
 ## 1. 当前真实基线
 
-已经具备 Security/JWT/RBAC、Flyway、采购后端、批次库存、FEFO、处方审核、支付退款、Redis、RabbitMQ、Modulith 可靠事件、Linux 部署模板和 Vue 角色工作台。
+已经具备 Security/JWT/RBAC、Flyway V1～V5、采购与仓库工作台、批次库存、FEFO、处方审核、支付退款、Redis 可降级限流、RabbitMQ + Modulith Outbox、盘点对账、Playwright E2E、k6 报告、JaCoCo 门禁、ADR 与面试材料。
 
-当前 GitHub CI 已验证：
+当前 GitHub CI 已验证（SHA `38df924`，quality gate [35444438308](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/35444438308) 及 Q3 合入后 [35444282606](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/35444282606)）：
 
-- 28 个测试全绿，其中 2 个使用原生 MySQL。
-- 库存 50 时 100 个并发请求只成功 50 个，库存不为负。
-- 事务后续失败会回滚此前的预占、聚合库存和库存流水。
-- 空库 Flyway V1→V3，以及仓库现有 V1 样本库原地升级。
-- Redis 停机读取回退 MySQL。
-- RabbitMQ 停机时事件持久化，恢复后定时重放并归档。
+- `mvn verify` **265 通过，0 失败，0 跳过**；`jacoco-check` 输出 `All coverage checks have been met.`
+- 空库 Flyway 启动冒烟、V1 样本库原地升级
+- Redis 停机目录读回退 MySQL
+- RabbitMQ 停机时事件未完成、恢复后重放并归档
 
-尚未达成：浏览器 E2E、退款完整故障测试、库存盘点/对账、完整采购前端、监控仪表盘、备份恢复、k6 报告和覆盖率门槛。当前本地 JaCoCo 行覆盖率基线为 16.97%，不能写成达到 70%。
+尚未闭合、因此不合 `main`：
+
+- 真实 MySQL 备份→临时库恢复校验和：O1 写明未在 Agent 环境执行
+- k6 下单 p95 **未包含** Publisher Confirm（`MESSAGING_ENABLED=false`）
+- Playwright 在当前 SHA `38df924` 重跑通过：[35444698922](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/35444698922)
+- 演示样本库历史库存在隔离批次，前台默认缺货，需采购收货后才能下单
 
 ## 2. 任务总表
 
@@ -36,7 +40,7 @@
 | Q3 | 覆盖率提升与强制门禁 | 20～30h | Q1/Q2/B1/F1 | P1 | 全部测试、JaCoCo 门禁 |
 | D1 | ADR、故障复盘、面试材料与最终验收 | 10～16h | 其余任务 | 否 | docs |
 
-总剩余工作量约 148～216 小时。单人每周 20～25 小时约 6～9 周；四个 Agent 并行时，受依赖、PR 审核和集成回归限制，现实日历周期约 3～5 周，不能简单除以四。
+2026-09-19：上表任务均已合入 `codex/v2-enterprise-upgrade`（Q3=#11，D1=#12）。不再按该表估算剩余功能工时。未闭合项见 [p0-final-gate.md](p0-final-gate.md)。
 
 ## 3. 任务明细
 
@@ -183,8 +187,6 @@
 
 ### D1：文档、复盘与面试材料
 
-交付索引：[d1/README.md](d1/README.md)。
-
 需求：
 
 - 补齐 PRD、用例、ER 图、权限矩阵、状态图、关键时序图、OpenAPI 使用说明。
@@ -222,7 +224,7 @@
 
 - Q3 达到覆盖率目标并启用门禁。
 - D1 汇总真实报告、ADR、面试材料。
-- P0 执行最终回归、审查未完成项并决定是否合入 `main`。
+- P0 执行最终回归、审查未完成项并决定是否合入 `main`。**结论：不合入 `main`，阶段性演示版。** [p0-final-gate.md](p0-final-gate.md)
 
 ## 5. 最终发布门禁
 
@@ -235,3 +237,5 @@
 - PR 无高优先级审查问题、无明文凭据、无虚假项目描述。
 
 未满足上述条件时，可以发布“阶段性演示版”，但不得标记为“完整稳定版”。
+
+2026-09-19 P0 对照结论见 [p0-final-gate.md](p0-final-gate.md)。

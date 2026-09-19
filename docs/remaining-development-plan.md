@@ -5,7 +5,7 @@
 集成分支：`codex/v2-enterprise-upgrade` @ `38df924`
 
 完整计划周期：12～16 周，每周 20～25 小时  
-当前结论：功能任务 Q1～D1 已合入集成分支。P0 **决定不合入 `main`**，发布形态为阶段性演示版。详见 [p0-final-gate.md](p0-final-gate.md)。
+当前结论：功能任务 Q1～D1 已合入集成分支。P0 已补演示库与备份恢复演练。发布形态见 [p0-final-gate.md](p0-final-gate.md)：**教学演示版，不是生产系统**。
 
 ## 1. 当前真实基线
 
@@ -18,12 +18,11 @@
 - Redis 停机目录读回退 MySQL
 - RabbitMQ 停机时事件未完成、恢复后重放并归档
 
-尚未闭合、因此不合 `main`：
+尚未闭合或未在本机重复的项：
 
-- 真实 MySQL 备份→临时库恢复校验和：O1 写明未在 Agent 环境执行
 - k6 下单 p95 **未包含** Publisher Confirm（`MESSAGING_ENABLED=false`）
-- Playwright 在当前 SHA `38df924` 重跑通过：[35444698922](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/35444698922)
-- 演示样本库历史库存在隔离批次，前台默认缺货，需采购收货后才能下单
+- Playwright 在 SHA `38df924` 已通过 CI；本演示任务未在本机重跑 E2E
+- 旧样本库升级路径仍存在隔离批次；**演示请用 `pharmacy_delivery_demo`**
 
 ## 2. 任务总表
 
@@ -224,7 +223,7 @@
 
 - Q3 达到覆盖率目标并启用门禁。
 - D1 汇总真实报告、ADR、面试材料。
-- P0 执行最终回归、审查未完成项并决定是否合入 `main`。**结论：不合入 `main`，阶段性演示版。** [p0-final-gate.md](p0-final-gate.md)
+- P0 执行最终回归、审查未完成项。备份演练与演示库已补；k6 confirm 路径仍未压测。发布说明见 [p0-final-gate.md](p0-final-gate.md)。
 
 ## 5. 最终发布门禁
 
@@ -238,4 +237,4 @@
 
 未满足上述条件时，可以发布“阶段性演示版”，但不得标记为“完整稳定版”。
 
-2026-09-19 P0 对照结论见 [p0-final-gate.md](p0-final-gate.md)。
+2026-09-19 P0 对照结论见 [p0-final-gate.md](p0-final-gate.md)。备份恢复已有临时库 COUNT(*) 证据；k6 Publisher Confirm 仍未压测。

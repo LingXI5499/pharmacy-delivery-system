@@ -34,7 +34,7 @@ flowchart LR
 
 要求 JDK 17、Maven 3.9、MySQL 8、Redis、RabbitMQ、Node.js 22。全项目不使用 Docker。
 
-1. 创建空数据库 `pharmacy_delivery`。应用启动时由 Flyway 自动建表；不要再执行旧的破坏性 `database/pharmacy_delivery.sql`。
+1. **推荐演示库（有可售库存）**：`database/init-demo-database.ps1` 创建 `pharmacy_delivery_demo`，写入虚构目录与账号。不要对 `pharmacy_delivery` 做 DROP。旧文件 `database/pharmacy_delivery.sql` 仅用于 V1 升级路径，升级后前台默认缺货。
 2. 设置环境变量。至少应设置数据库口令和随机 JWT 密钥：
 
 ```powershell
@@ -48,7 +48,10 @@ $env:MESSAGING_ENABLED="true"
 
 ```powershell
 cd backend
-mvn spring-boot:run
+# 演示库（先跑 database/init-demo-database.ps1）
+$env:SPRING_PROFILES_ACTIVE="demo"
+$env:DB_PASSWORD="你的数据库密码"
+mvn spring-boot:run -Dspring-boot.run.profiles=demo
 
 cd ../frontend
 npm ci

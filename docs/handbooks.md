@@ -13,12 +13,12 @@
 
 - Linux 原生模板在 `deploy/`（进程、Prometheus、Grafana）
 - 不提供 Docker Compose / K8s
-- 本地演示：MySQL `pharmacy_delivery`、可选 Redis、可选 RabbitMQ；消息可关 `MESSAGING_ENABLED=false`
+- 本地演示：推荐 `pharmacy_delivery_demo` + `SPRING_PROFILES_ACTIVE=demo`（见 [demo-accounts.md](demo-accounts.md)）；可选 Redis、可选 RabbitMQ；消息可关 `MESSAGING_ENABLED=false`
 
 ## 备份恢复
 
 - 脚本与护栏：[ops/backup-restore-drill.md](ops/backup-restore-drill.md)
-- 真实临时库恢复：**未在 D1 验证**，不能写成已完成演练
+- 演示库备份→临时库恢复 COUNT(*)：[ops/backup-restore-evidence.md](ops/backup-restore-evidence.md)
 
 ## 可观测性
 

@@ -35,12 +35,11 @@ Q3 覆盖率门禁在独立 PR [#11](https://github.com/LingXI5499/pharmacy-deli
 |---|---|
 | 目录读 p95 18.24ms、下单 p95 32.34ms、对账四项为 0 | [docs/reports/p1-performance.md](../reports/p1-performance.md)，Actions [35088568109](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/35088568109) |
 | V5 两个索引有 EXPLAIN ANALYZE 前后对比 | 同上 |
-| 备份脚本拒绝危险路径 | [docs/ops/backup-restore-drill.md](../ops/backup-restore-drill.md)；真实临时库恢复 **未在 D1 环境执行** |
+| 备份脚本拒绝危险路径 | D1 当时未做真实恢复；P0 演示库演练见 [backup-restore-evidence.md](../ops/backup-restore-evidence.md) |
 | Q3 行覆盖本机 94%、门禁已写入 pom | 仅 [#11](https://github.com/LingXI5499/pharmacy-delivery-system/pull/11) 本地 `mvn verify`；CI 未验证时不得当作成绩 |
 
 ## 明确未完成
 
 - Q3 未合入本基线，CI 覆盖率报告未下载。
-- 真实 MySQL 备份→恢复校验和：O1 文档写明未在 Agent 环境执行。
+- 真实 MySQL 备份→恢复：D1 未做；P0 已在 `pharmacy_delivery_demo` → `pharmacy_delivery_restore_tmp` 留下 COUNT(*) 证据。
 - 开启 RabbitMQ Publisher Confirm 的下单 p95 **未压测**。
-- 未合入 `main`，P0 最终回归未做。

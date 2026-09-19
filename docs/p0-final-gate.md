@@ -1,49 +1,33 @@
 # P0 最终回归与发布结论
 
-日期：2026-09-19
+日期：2026-09-19（演示库与备份演练补完）
 
 审查人：集成 Agent（P0）
 
-集成分支：`codex/v2-enterprise-upgrade` @ `38df924`  
-**发布决定：不合入 `main`。可演示、可写进作品集说明，标记为阶段性演示版，不是完整稳定版。**
+任务分支：`codex/p0-demo-release`
+集成分支目标：`codex/v2-enterprise-upgrade`
 
-`main` 上的总升级 PR [#1](https://github.com/LingXI5499/pharmacy-delivery-system/pull/1) 保持打开，不要在本结论前合并。
+**发布形态：教学 / 作品集演示版 `v2.0.0`。不是可经营真实药店的系统，也不是生产容灾或 GSP 合规证明。**
 
-## 合并顺序（已执行）
+## 本轮补完
 
-| 顺序 | 任务 | PR | 合入 SHA | 合入后 quality gate |
-|---|---|---|---|---|
-| 1 | Q3 覆盖率门禁 | [#11](https://github.com/LingXI5499/pharmacy-delivery-system/pull/11) | `1ba624b` | [35444282606](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/35444282606) 成功 |
-| 2 | D1 文档 | [#12](https://github.com/LingXI5499/pharmacy-delivery-system/pull/12) | `38df924` | [35444438308](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/35444438308) 成功 |
-
-Q3 合入前 CI 曾在 `f707fec` 失败（SecurityContext 污染），已由 `33e5453` 修复后再合。
-
-## 门禁对照
-
-| 门禁 | 结论 | 证据 |
+| 项 | 结果 | 证据 |
 |---|---|---|
-| 后端单元 + 原生 MySQL 集成 | 通过 | `38df924`：`Tests run: 265, Failures: 0, Errors: 0, Skipped: 0`；`jacoco-check`：`All coverage checks have been met.` |
-| 前端 `npm ci` / audit high / build | 通过 | 同上 quality gate 步骤 |
-| 空库 Flyway 与 V1 原地升级 | 通过 | 同上 |
-| 行覆盖 ≥ 70%、核心 Service 分支 ≥ 80% | 门禁在 CI `mvn verify` 中通过；百分比明细以 JaCoCo HTML/CSV 为准 | 合入后 CI 未上传 artifact（本 PR 补上传）。本机 Q3 报告见 [q3-coverage.md](q3-coverage.md)，**不能替代 CI CSV** |
-| k6 + 对账 | 通过（HTTP 路径） | [reports/p1-performance.md](reports/p1-performance.md)，Actions [35088568109](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/35088568109)；`MESSAGING_ENABLED=false` |
-| Redis / RabbitMQ 故障 | CI 步骤通过 | quality gate Redis 回退与 MQ 重放 |
-| Playwright E2E | 通过（当前 SHA） | [35444698922](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/35444698922)（`workflow_dispatch` on `38df924`）；此前 E1：[35076836489](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/35076836489) |
-| 备份恢复真实临时库 | **未通过门禁** | [ops/backup-restore-drill.md](ops/backup-restore-drill.md)：护栏脚本有，真实恢复未执行 |
-| 无明文凭据 / 无虚假生产描述 | 文档按教学作品集撰写 | [d1/README.md](d1/README.md) |
+| 虚构演示库 `pharmacy_delivery_demo` | 28 SKU，27 个可售库存，`medicine.stock` 与可售批次一致 | `database/demo-seed.sql`、`database/init-demo-database.ps1` |
+| 账号 `admin` / `user01` / 药师采购仓管 | 登录成功，密码 `123456`（Spring `$2a$` BCrypt） | 本机 `POST /api/auth/login` |
+| 备份→临时库恢复 | COUNT(*) 六表一致后 DROP 临时库 | [ops/backup-restore-evidence.md](ops/backup-restore-evidence.md) |
+| 本机 `mvn verify`（独立库 `pharmacy_delivery_verify`，Redis 开启，`MESSAGING_ENABLED=false`） | Tests run: 265, Failures: 0, Errors: 0, Skipped: 0；`All coverage checks have been met.` | 本机 2026-09-19 |
+| 本机前端 | `npm ci`、`npm audit --audit-level=high`、`npm run build` 退出码 0 | 本机 2026-09-19 |
 
-## 明确拒绝合入 `main` 的原因
+未对 `pharmacy_delivery` 做 DROP 或恢复。种子不进 Flyway。
 
-1. 备份→临时库恢复校验和没有本次可引用的日志。
-2. 压测 p95 未覆盖 Publisher Confirm 路径。
-3. 压测 p95 未覆盖 Publisher Confirm 路径。
-4. 仓库 `main` 与作品集升级 PR #1 不是本轮集成目标；AGENTS.md 禁止直接推 `main`。
+## 仍未执行 / 未声称通过
 
-## 本 PR 额外改动
+- 本机未重跑 Playwright E2E；上一轮 CI 在 `38df924`：[35444698922](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/35444698922)
+- k6 下单 p95 **仍未覆盖** Publisher Confirm（`MESSAGING_ENABLED=false` 的历史报告仍有效，不能当成 confirm 路径成绩）
+- 本机 `/actuator/health` 在未启动 RabbitMQ 时为 DOWN，不影响目录与登录
+- 退出登录后 Access 拒绝依赖 Redis；本机无 Redis 时该集成测试失败，启动 Redis 后 `mvn verify` 全绿
 
-- `ci.yml`：`mvn verify` 后上传 `backend/target/site/jacoco/` artifact，便于以后下载模块覆盖率，而不是只看「check 通过」。
-- 未升级 `actions/setup-java` / Node 20 deprecation：属于清理项，不夹带进本结论。
+## 合入说明
 
-## 演示注意
-
-样本库升级后历史库存在 `LEGACY_UNKNOWN` 隔离批次。验收下单前需要：采购建草稿 → 管理员批准 → 仓库收合格未来效期批次。账号见 [demo-accounts.md](demo-accounts.md)。
+用户要求在测试通过后合入 `main` 并打版本标签。本结论允许合入，标签与说明必须写清：教学演示版，不是完整生产稳定版。

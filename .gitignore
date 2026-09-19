@@ -15,6 +15,8 @@ frontend/test-results/
 frontend/.playwright/
 # Local k6 / EXPLAIN captures
 performance/out/
+# Local MySQL backup drill artifacts (never commit dumps)
+deploy/backup/out/
 # OS
 .DS_Store
 Thumbs.db

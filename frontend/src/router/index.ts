@@ -46,10 +46,10 @@ router.beforeEach(async (to) => {
   if ((needAuth || to.meta.guest) && !store.initialized) await store.loadMe()
   if (needAuth && !store.user) return { name: 'login', query: { redirect: to.fullPath } }
   if (needAdmin && store.user?.role !== 'ADMIN') {
-    ElMessage.warning('该页面仅药品管理员可访问')
-    return '/home'
+    ElMessage.warning('当前账号没有管理员权限，请登录管理员账号')
+    return { name: 'login', query: { redirect: to.fullPath, switch: '1' } }
   }
-  if (to.meta.guest && store.user) return store.user.role === 'ADMIN' ? '/admin/dashboard' : '/home'
+  if (to.meta.guest && store.user && to.query.switch !== '1') return store.user.role === 'ADMIN' ? '/admin/dashboard' : '/home'
   return true
 })
 

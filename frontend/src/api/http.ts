@@ -21,7 +21,10 @@ http.interceptors.response.use(
   error => {
     const message = error?.response?.data?.message || error?.message || '网络异常，请检查后端是否启动'
     const config = error.config as SilentConfig
-    if (!config?.silent) ElMessage.error(message)
+    const status = error?.response?.status
+    if ((status === 401 || status === 403) && config?.url !== '/auth/me') {
+      window.dispatchEvent(new Event('pharmacy-auth-rejected'))
+    } else if (!config?.silent) ElMessage.error(message)
     return Promise.reject(error)
   }
 )

@@ -235,6 +235,8 @@ mysql -u root -p < database/pharmacy_delivery.sql
 
 > 初始化脚本会删除并重新创建 `pharmacy_delivery` 数据库，请不要对生产数据库执行。
 
+如果本机的 `pharmacy_delivery` 已被其他版本迁移过，不要直接运行上述脚本覆盖它。可以复制初始化脚本，将开头的 `DROP DATABASE` 行去掉，并把 `CREATE DATABASE`、`USE` 中的库名改为新的名称（例如 `pharmacy_delivery_local`），再通过 `DB_URL` 指向新库。这份代码的演示账号采用明文密码；迁移后的 BCrypt 账号不能直接用于此版本。
+
 ### 2. 配置数据库连接
 
 推荐通过环境变量提供数据库密码，不要将个人数据库密码提交到 GitHub：
@@ -252,6 +254,12 @@ Windows PowerShell 示例：
 ```powershell
 $env:DB_PASSWORD="你的MySQL密码"
 ```
+
+登录使用浏览器 Cookie 和服务端 Session。同一浏览器中的多个标签页共用一个登录身份；在另一标签页登录普通用户会切换管理员标签页的身份。若要同时演示两个角色，请使用不同浏览器或一个普通窗口加一个无痕窗口。
+
+如果从 IntelliJ IDEA 的 `PharmacyDeliveryApplication` 运行配置启动后端，也要在该配置的 **Environment variables** 中设置 `DB_PASSWORD`。终端里的 `$env:DB_PASSWORD` 只对当前终端及其子进程生效，IDE 不会自动继承。修改运行配置后重启后端。
+
+若首页显示“系统内部异常，请稍后重试”且分类、药品列表为空，先检查后端日志是否有 `Access denied for user 'root'@'localhost' (using password: NO)`。这表示后端没有收到数据库密码；确认 MySQL 已启动、`pharmacy_delivery` 数据库已存在，并按上面的方式提供正确凭据。不要把密码写入 `application.yml` 或提交到 Git。
 
 ### 3. 启动后端
 
@@ -305,6 +313,8 @@ npm run dev
 cd backend
 mvn test
 ```
+
+这些集成测试会向所连接的数据库写入测试用户、地址和订单等数据；请使用独立的本地演示库运行，不要指向已有业务数据的数据库。
 
 ## 已知限制
 

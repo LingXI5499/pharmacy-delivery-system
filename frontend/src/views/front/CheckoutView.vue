@@ -9,14 +9,16 @@ import { fullAddress, money } from '@/utils'
 
 const router=useRouter(),route=useRoute(),store=useCartStore()
 const addresses=ref<Address[]>([]),selectedAddressId=ref<number>(),remark=ref(''),submitting=ref(false)
+const initializing=ref(true)
 const prescriptionFile=ref<File>(),prescriptionId=ref<number>()
 const ids=computed(()=>String(route.query.ids||'').split(',').map(Number).filter(Boolean))
 const items=computed<CartItem[]>(()=>store.cart.items.filter(i=>ids.value.includes(i.cartItemId)&&i.available))
 const total=computed(()=>items.value.reduce((s,i)=>s+i.subtotalAmount,0))
 const needsPrescription=computed(()=>items.value.some(i=>i.prescriptionRequired))
-onMounted(async()=>{await store.load();addresses.value=await addressApi.list();selectedAddressId.value=addresses.value.find(a=>a.isDefault===1)?.id||addresses.value[0]?.id})
+onMounted(async()=>{await store.load();addresses.value=await addressApi.list();selectedAddressId.value=addresses.value.find(a=>a.isDefault===1)?.id||addresses.value[0]?.id;initializing.value=false})
 const choosePrescription=(e:Event)=>{prescriptionFile.value=(e.target as HTMLInputElement).files?.[0]}
 const submit=async()=>{
+  if(initializing.value||submitting.value)return
   if(!selectedAddressId.value)return ElMessage.warning('请选择收货地址')
   if(!items.value.length)return router.push('/cart')
   if(needsPrescription.value&&!prescriptionFile.value)return ElMessage.warning('处方药订单必须上传处方')
@@ -39,7 +41,7 @@ const submit=async()=>{
         <section v-if="needsPrescription" class="panel"><h2>处方凭证</h2><p>只允许真实内容为 PDF、JPEG、PNG，最大 10 MB。</p><input type="file" accept="application/pdf,image/jpeg,image/png" @change="choosePrescription"><small>文件不在 Web 静态目录，仅本人和药师可鉴权查看。</small></section>
         <section class="panel"><h2>订单备注</h2><el-input v-model="remark" type="textarea" :rows="3" maxlength="255" show-word-limit/></section>
       </main>
-      <aside class="panel total"><h2>费用明细</h2><div><span>商品总额</span><b>{{money(total)}}</b></div><div><span>配送费</span><b>¥5.00</b></div><strong>{{money(total+5)}}</strong><el-button type="primary" size="large" :loading="submitting" @click="submit">提交订单</el-button><p>仅使用虚构数据与模拟支付。</p></aside>
+      <aside class="panel total"><h2>费用明细</h2><div><span>商品总额</span><b>{{money(total)}}</b></div><div><span>配送费</span><b>¥5.00</b></div><strong>{{money(total+5)}}</strong><el-button type="primary" size="large" :disabled="initializing" :loading="submitting" @click="submit">提交订单</el-button><p>仅使用虚构数据与模拟支付。</p></aside>
     </div>
   </div>
 </template>

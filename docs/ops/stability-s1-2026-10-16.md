@@ -12,6 +12,7 @@
 6. demo 关闭 Redis/RabbitMQ 非核心健康指示器，并只在 messaging.enabled 时声明 Rabbit 拓扑；不修改生产健康检测配置。
 7. 补充超时、扫描故障、晚到支付、缓存碰撞和 Rabbit 拓扑开关测试；真实 MySQL 验证扫描、竞态、重复关单及释放失败回滚。
 8. 在现有依赖版本范围内更新前端锁文件，修复本次 npm audit 阻断；E2E 工作流支持目标为 main 的 PR。
+9. 本轮 CI Trace 发现结算页地址初始化结束前就能点击提交，导致首次点击无下单请求、重试累加购物车。结算初始化期间禁用提交，并在处理函数拒绝初始化期及重复提交；新增阻塞地址响应的 Playwright 回归，保留 FEFO 原有严格断言。
 
 ## 扫描配置
 
@@ -49,6 +50,8 @@
 - demo profile + `MESSAGING_ENABLED=false` + 20 秒支付期限 + 1 秒扫描间隔，真实 HTTP 验证登录、目录、购物车、同 Key 重复下单、10 次重复支付回调；数据库断言仅一次销售流水。
 - 将测试订单期限设为已到期，由后台调度器自动关单；验证批次可用量恢复、预占清零、单次 `ORDER_RELEASE` 和单次状态日志，迟到成功回调返回 `40902`。
 - demo `/actuator/health` 返回 `UP`。本机 Playwright 因缓存 Chromium 启动 `spawn UNKNOWN` 未执行浏览器场景；浏览器 E2E、Linux 原生 RabbitMQ 停机恢复及 V1 样本升级以本次 PR 的 GitHub CI 结果为准。
+- 实际 Redis 缓存存在且 TTL 在 300 秒内；关闭 Redis 后目录回退 MySQL，demo 健康仍 `UP`。关闭临时 MySQL 后支付请求被认证过滤器拒绝（HTTP 401，业务码 40101），未虚假报告支付成功。
+- 首轮 GitHub quality gate 通过；首轮浏览器 8/9 通过，Trace 定位上述结算初始化竞态，修复后重新执行完整 CI。
 
 ## 保留风险
 

@@ -85,6 +85,7 @@ class PaymentServiceTest {
         PaymentAttempt attempt = pendingAttempt(5L, 1L, BigDecimal.TEN);
         attempt.setStatus("SUCCESS");
         PharmacyOrder order = order(1L, 8L, OrderStatus.TO_PACK);
+        order.setPaymentDeadline(LocalDateTime.now().minusMinutes(1));
         when(paymentMapper.lockByNo("PAY1")).thenReturn(attempt);
         when(orderMapper.lockById(1L)).thenReturn(order);
 
@@ -163,6 +164,20 @@ class PaymentServiceTest {
         assertEquals(ErrorCode.ORDER_STATUS_CONFLICT,
                 assertThrows(BusinessException.class,
                         () -> paymentService.callback(8L, "PAY1", "cb", true, BigDecimal.TEN)).getCode());
+    }
+
+    @Test
+    void successfulCallbackRejectsExpiredDeadlineBeforeTimeoutTaskRuns() {
+        PaymentAttempt attempt = pendingAttempt(5L, 1L, BigDecimal.TEN);
+        PharmacyOrder order = order(1L, 8L, OrderStatus.PENDING_PAYMENT);
+        order.setPaymentDeadline(LocalDateTime.now().minusMinutes(1));
+        when(paymentMapper.lockByNo("PAY1")).thenReturn(attempt);
+        when(orderMapper.lockById(1L)).thenReturn(order);
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> paymentService.callback(8L, "PAY1", "cb-expired", true, BigDecimal.TEN));
+        assertEquals(ErrorCode.ORDER_STATUS_CONFLICT, ex.getCode());
+        verify(inventoryService, never()).confirmSale(anyLong(), anyLong());
+        verify(paymentMapper, never()).updateById(any(PaymentAttempt.class));
     }
 
     private static PharmacyOrder order(Long id, Long userId, OrderStatus status) {

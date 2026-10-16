@@ -37,7 +37,8 @@ public class PublicMedicineServiceImpl implements PublicMedicineService {
     }
 
     @Override
-    @Cacheable(value="catalogPages",key="T(java.util.Objects).hash(#page,#size,#keyword,#categoryId,#sort)")
+    // Full argument tuple avoids collisions in the former 32-bit hash key.
+    @Cacheable(value="catalogPages")
     public PageData<MedicineVO> pageMedicines(long page, long size, String keyword, Long categoryId, String sort) {
         Page<Medicine> pageObj = new Page<>(Math.max(page, 1), Math.min(Math.max(size, 1), 50));
         LambdaQueryWrapper<Medicine> q = new LambdaQueryWrapper<Medicine>()

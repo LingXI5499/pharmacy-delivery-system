@@ -37,7 +37,7 @@ public class PaymentService {
         if (order.getOrderStatus() != OrderStatus.PENDING_PAYMENT) {
             throw new BusinessException(ErrorCode.ORDER_STATUS_CONFLICT, "订单当前不可支付");
         }
-        if (order.getPaymentDeadline() != null && order.getPaymentDeadline().isBefore(LocalDateTime.now())) {
+        if (order.getPaymentDeadline() != null && !order.getPaymentDeadline().isAfter(LocalDateTime.now())) {
             throw new BusinessException(ErrorCode.ORDER_STATUS_CONFLICT, "订单已超过支付期限");
         }
         PaymentAttempt existing = paymentMapper.selectOne(new LambdaQueryWrapper<PaymentAttempt>()
@@ -78,6 +78,9 @@ public class PaymentService {
             }
             if (order.getOrderStatus() != OrderStatus.PENDING_PAYMENT) {
                 throw new BusinessException(ErrorCode.ORDER_STATUS_CONFLICT, "订单当前不可确认支付");
+            }
+            if (order.getPaymentDeadline() != null && !order.getPaymentDeadline().isAfter(LocalDateTime.now())) {
+                throw new BusinessException(ErrorCode.ORDER_STATUS_CONFLICT, "订单已超过支付期限");
             }
             inventoryService.confirmSale(order.getId(), order.getUserId());
             payment.setPaidTime(LocalDateTime.now());

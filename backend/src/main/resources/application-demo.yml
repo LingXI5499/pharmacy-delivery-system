@@ -14,3 +14,11 @@ spring:
 app:
   messaging:
     enabled: ${MESSAGING_ENABLED:false}
+
+# Demo health checks report required dependencies, not disabled Redis/RabbitMQ.
+management:
+  health:
+    redis:
+      enabled: ${DEMO_REDIS_HEALTH_ENABLED:false}
+    rabbit:
+      enabled: ${DEMO_RABBIT_HEALTH_ENABLED:false}

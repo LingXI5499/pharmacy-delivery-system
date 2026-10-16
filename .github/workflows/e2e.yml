@@ -2,7 +2,7 @@ name: V2 Playwright E2E
 
 on:
   pull_request:
-    branches: [codex/v2-enterprise-upgrade]
+    branches: [main, codex/v2-enterprise-upgrade]
     paths:
       - 'frontend/**'
       - '.github/workflows/e2e.yml'

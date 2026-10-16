@@ -34,7 +34,7 @@
 ## 回归与验收
 
 1. `cd backend && mvn verify`（若未设 `DB_URL`，部分 MySQL 集成测试将跳过）。
-2. `cd frontend && npm ci && npm run build`（前端未改）。
+2. `cd frontend && npm ci && npm audit --audit-level=high && npm run build`，再执行 Playwright（含结算初始化回归）。
 3. 独立 `pharmacy_delivery_demo`，`SPRING_PROFILES_ACTIVE=demo`、`MESSAGING_ENABLED=false`，无需 RabbitMQ 测试登录 / 目录 / OTC 下单。
 4. **仅测试库**设置 `app.order.payment-timeout=10s`、`app.order.timeout-reconciliation-interval-ms=1000`；等待自动关闭，验证库存恢复与单次状态日志。
 5. 在超过支付期限且扫单尚未完成时发送模拟成功回调；应拒绝且不得出库。
@@ -52,6 +52,14 @@
 - demo `/actuator/health` 返回 `UP`。本机 Playwright 因缓存 Chromium 启动 `spawn UNKNOWN` 未执行浏览器场景；浏览器 E2E、Linux 原生 RabbitMQ 停机恢复及 V1 样本升级以本次 PR 的 GitHub CI 结果为准。
 - 实际 Redis 缓存存在且 TTL 在 300 秒内；关闭 Redis 后目录回退 MySQL，demo 健康仍 `UP`。关闭临时 MySQL 后支付请求被认证过滤器拒绝（HTTP 401，业务码 40101），未虚假报告支付成功。
 - 首轮 GitHub quality gate 通过；首轮浏览器 8/9 通过，Trace 定位上述结算初始化竞态，修复后重新执行完整 CI。
+
+## GitHub 验收结果
+
+业务修复提交 `074be4c`：
+
+- [V2 quality gate](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/38838873466) 通过：Java 17、279 测试、覆盖率门禁、空库 Flyway、V1 样本升级、Redis 停机回退、RabbitMQ 停机后事件恢复、前端审计及构建。
+- [V2 Playwright E2E](https://github.com/LingXI5499/pharmacy-delivery-system/actions/runs/38838873589) **10 场景全部通过**：FEFO、超时库存恢复、退款回补、处方审核支付、采购收货、普通药交易、角色路由隔离、结算地址初始化。
+- 交付 [PR #15](https://github.com/LingXI5499/pharmacy-delivery-system/pull/15)，目标 main；最终文档提交继续遵循 PR 质量门禁。
 
 ## 保留风险
 

@@ -3,10 +3,12 @@ package com.pharmacy.messaging;
 import org.springframework.amqp.core.*;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Configuration
+@ConditionalOnProperty(name="app.messaging.enabled", havingValue="true")
 public class RabbitTopologyConfig {
     public static final String EVENTS_EXCHANGE="pharmacy.events";
     public static final String ORDER_TIMEOUT_EXCHANGE="pharmacy.order.timeout";

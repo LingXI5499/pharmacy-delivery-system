@@ -78,6 +78,7 @@ CI 在 Ubuntu Runner 原生启动 MySQL、Redis、RabbitMQ，运行测试、Flyw
 
 ## 文档
 
+- [S1 支付期限、超时兜底与演示模式验收](docs/ops/stability-s1-2026-10-16.md)
 - [开发与验收台账](docs/development-plan.md)
 - [架构、状态机与正确性边界](docs/architecture.md)
 - [成品仓库代码级参考审计](docs/reference-audit.md)

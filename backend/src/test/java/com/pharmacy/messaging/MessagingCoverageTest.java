@@ -84,6 +84,16 @@ class MessagingCoverageTest {
     }
 
     @Test
+    void closeIfPendingWithMissingDeadlineMustNotClose() {
+        PharmacyOrder pending = new PharmacyOrder();
+        pending.setOrderStatus(OrderStatus.PENDING_PAYMENT);
+        when(orderMapper.lockById(11L)).thenReturn(pending);
+        timeoutService.closeIfPending(11L);
+        verify(inventory, never()).release(anyLong(), anyString(), any());
+        verify(logMapper, never()).insert(any(com.pharmacy.entity.OrderStatusLog.class));
+    }
+
+    @Test
     void closeIfPendingReleasesAndWritesLog() {
         PharmacyOrder pending = new PharmacyOrder();
         pending.setId(4L);

@@ -4,6 +4,9 @@ import com.pharmacy.entity.PharmacyOrderItem;
 import com.pharmacy.enums.OrderStatus;
 import com.pharmacy.exception.BusinessException;
 import com.pharmacy.inventory.InventoryService;
+import com.pharmacy.mapper.PharmacyOrderMapper;
+import com.pharmacy.messaging.OrderTimeoutService;
+import com.pharmacy.messaging.PaymentTimeoutReconciliationTask;
 import com.pharmacy.payment.PaymentAttempt;
 import com.pharmacy.payment.PaymentService;
 import com.pharmacy.payment.RefundRecord;
@@ -35,7 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         "app.messaging.enabled=false",
         "spring.cache.type=simple",
         "spring.modulith.events.republish-outstanding-events-on-restart=false",
-        "spring.datasource.hikari.maximum-pool-size=32"
+        "spring.datasource.hikari.maximum-pool-size=32",
+        "app.order.timeout-reconciliation-initial-delay-ms=3600000"
 })
 @EnabledIfEnvironmentVariable(named = "DB_URL", matches = ".+")
 class PaymentRefundMySqlIntegrationTest {
@@ -43,6 +47,9 @@ class PaymentRefundMySqlIntegrationTest {
     @Autowired private RefundService refundService;
     @Autowired private InventoryService inventoryService;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private OrderTimeoutService timeoutService;
+    @Autowired private PaymentTimeoutReconciliationTask reconciliation;
+    @Autowired private PharmacyOrderMapper orderMapper;
 
     @AfterEach
     void cleanBusinessData() {
@@ -193,6 +200,117 @@ class PaymentRefundMySqlIntegrationTest {
         assertEquals(0, quantity("SELECT available_qty FROM medicine_batch WHERE id=?", fixture.batchId()));
         assertEquals(0, quantity("SELECT reserved_qty FROM medicine_batch WHERE id=?", fixture.batchId()));
         assertEquals(1, quantity("SELECT COUNT(*) FROM inventory_reservation WHERE order_id=? AND status='ACTIVE'", fixture.orderId()));
+    }
+
+    @Test
+    void databaseScanWithoutRabbitReleasesExpiredReservationOnlyOnce() {
+        PaidFixture fixture = paidReadyFixture(3);
+        jdbc.update("UPDATE pharmacy_order SET payment_deadline=DATE_SUB(NOW(),INTERVAL 1 MINUTE) WHERE id=?", fixture.orderId());
+
+        reconciliation.reconcile();
+        reconciliation.reconcile();
+        timeoutService.closeIfPending(fixture.orderId());
+
+        assertTimeoutReleasedOnce(fixture, 3);
+    }
+
+    @Test
+    void scanIgnoresFutureMissingDeadlineAndTerminalOrders() {
+        PaidFixture fixture = paidReadyFixture(1);
+        reconciliation.reconcile();
+        assertEquals("PENDING_PAYMENT", text("SELECT order_status FROM pharmacy_order WHERE id=?", fixture.orderId()));
+        jdbc.update("UPDATE pharmacy_order SET payment_deadline=NULL WHERE id=?", fixture.orderId());
+        reconciliation.reconcile();
+        timeoutService.closeIfPending(fixture.orderId());
+        assertEquals("PENDING_PAYMENT", text("SELECT order_status FROM pharmacy_order WHERE id=?", fixture.orderId()));
+        jdbc.update("UPDATE pharmacy_order SET payment_deadline=DATE_SUB(NOW(),INTERVAL 1 MINUTE),order_status='TO_PACK' WHERE id=?", fixture.orderId());
+        reconciliation.reconcile();
+        assertEquals("TO_PACK", text("SELECT order_status FROM pharmacy_order WHERE id=?", fixture.orderId()));
+        assertEquals(1, quantity("SELECT reserved_qty FROM medicine_batch WHERE id=?", fixture.batchId()));
+        assertEquals(0, quantity("SELECT COUNT(*) FROM inventory_ledger WHERE business_type='ORDER_RELEASE' AND business_id=?", fixture.orderId().toString()));
+    }
+
+    @Test
+    void scanIncludesExactDeadlineAndExcludesOtherStatuses() {
+        PaidFixture fixture = paidReadyFixture(1);
+        LocalDateTime deadline = LocalDateTime.of(2026, 1, 1, 0, 0);
+        jdbc.update("UPDATE pharmacy_order SET payment_deadline=? WHERE id=?", deadline, fixture.orderId());
+        assertEquals(List.of(), orderMapper.findExpiredPendingPaymentIds(deadline.minusSeconds(1), 100));
+        assertEquals(List.of(fixture.orderId()), orderMapper.findExpiredPendingPaymentIds(deadline, 100));
+        jdbc.update("UPDATE pharmacy_order SET order_status='CLOSED_TIMEOUT' WHERE id=?", fixture.orderId());
+        assertEquals(List.of(), orderMapper.findExpiredPendingPaymentIds(deadline, 100));
+    }
+
+    @Test
+    void latePaymentRejectedBeforeReconciliationWithoutChangingInventory() {
+        PaidFixture fixture = paidReadyFixture(2);
+        PaymentAttempt attempt = paymentService.createAttempt(fixture.userId(), fixture.orderId());
+        jdbc.update("UPDATE pharmacy_order SET payment_deadline=DATE_SUB(NOW(),INTERVAL 1 MINUTE) WHERE id=?", fixture.orderId());
+        BusinessException failure = assertThrows(BusinessException.class, () -> paymentService.callback(
+                fixture.userId(), attempt.getPaymentNo(), "late-callback", true, fixture.amount()));
+        assertEquals(com.pharmacy.common.ErrorCode.ORDER_STATUS_CONFLICT, failure.getCode());
+        assertEquals("PENDING", text("SELECT status FROM payment_attempt WHERE id=?", attempt.getId()));
+        assertEquals("PENDING_PAYMENT", text("SELECT order_status FROM pharmacy_order WHERE id=?", fixture.orderId()));
+        assertEquals(2, quantity("SELECT reserved_qty FROM medicine_batch WHERE id=?", fixture.batchId()));
+        assertEquals(0, quantity("SELECT COUNT(*) FROM inventory_ledger WHERE business_type='SALE_COMMIT' AND business_id=?", fixture.orderId().toString()));
+        reconciliation.reconcile();
+        assertTimeoutReleasedOnce(fixture, 2);
+    }
+
+    @Test
+    void lateCallbacksRaceWithTimeoutAndReleaseStockOnlyOnce() throws Exception {
+        PaidFixture fixture = paidReadyFixture(2);
+        PaymentAttempt attempt = paymentService.createAttempt(fixture.userId(), fixture.orderId());
+        jdbc.update("UPDATE pharmacy_order SET payment_deadline=DATE_SUB(NOW(),INTERVAL 1 MINUTE) WHERE id=?", fixture.orderId());
+        ExecutorService pool = Executors.newFixedThreadPool(10);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<?>> futures = new ArrayList<>();
+        try {
+            for (int i = 0; i < 10; i++) {
+                final boolean payment = i % 2 == 0;
+                futures.add(pool.submit(() -> {
+                    start.await();
+                    if (payment) {
+                        assertThrows(BusinessException.class, () -> paymentService.callback(
+                                fixture.userId(), attempt.getPaymentNo(), "race-callback", true, fixture.amount()));
+                    } else {
+                        timeoutService.closeIfPending(fixture.orderId());
+                    }
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (Future<?> future : futures) future.get(60, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+        assertTimeoutReleasedOnce(fixture, 2);
+        assertEquals("PENDING", text("SELECT status FROM payment_attempt WHERE id=?", attempt.getId()));
+    }
+
+    @Test
+    void releaseFailureRollsBackTimeoutAndCanRetry() {
+        PaidFixture fixture = paidReadyFixture(2);
+        jdbc.update("UPDATE pharmacy_order SET payment_deadline=DATE_SUB(NOW(),INTERVAL 1 MINUTE) WHERE id=?", fixture.orderId());
+        jdbc.update("UPDATE medicine_batch SET reserved_qty=0 WHERE id=?", fixture.batchId());
+        assertThrows(BusinessException.class, () -> timeoutService.closeIfPending(fixture.orderId()));
+        assertEquals("PENDING_PAYMENT", text("SELECT order_status FROM pharmacy_order WHERE id=?", fixture.orderId()));
+        assertEquals(1, quantity("SELECT COUNT(*) FROM inventory_reservation WHERE order_id=? AND status='ACTIVE'", fixture.orderId()));
+        assertEquals(0, quantity("SELECT COUNT(*) FROM order_status_log WHERE order_id=?", fixture.orderId()));
+        jdbc.update("UPDATE medicine_batch SET reserved_qty=2 WHERE id=?", fixture.batchId());
+        reconciliation.reconcile();
+        assertTimeoutReleasedOnce(fixture, 2);
+    }
+
+    private void assertTimeoutReleasedOnce(PaidFixture fixture, int qty) {
+        assertEquals("CLOSED_TIMEOUT", text("SELECT order_status FROM pharmacy_order WHERE id=?", fixture.orderId()));
+        assertEquals(qty, quantity("SELECT available_qty FROM medicine_batch WHERE id=?", fixture.batchId()));
+        assertEquals(0, quantity("SELECT reserved_qty FROM medicine_batch WHERE id=?", fixture.batchId()));
+        assertEquals(qty, quantity("SELECT stock FROM medicine WHERE id=?", fixture.medicineId()));
+        assertEquals(1, quantity("SELECT COUNT(*) FROM inventory_reservation WHERE order_id=? AND status='RELEASED'", fixture.orderId()));
+        assertEquals(1, quantity("SELECT COUNT(*) FROM inventory_ledger WHERE business_type='ORDER_RELEASE' AND business_id=?", fixture.orderId().toString()));
+        assertEquals(1, quantity("SELECT COUNT(*) FROM order_status_log WHERE order_id=? AND after_status='CLOSED_TIMEOUT'", fixture.orderId()));
     }
 
     private PaidFixture paidReadyFixture(int qty) {

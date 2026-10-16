@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { loginViaUi } from './support/auth'
+import { apiJson, apiLogin, loginViaUi } from './support/auth'
+import { findMedicineId } from './support/shop'
 
 test('guest visiting cart is redirected to login', async ({ page }) => {
   await page.goto('/cart')
@@ -45,4 +46,35 @@ test('user cannot access admin dashboard', async ({ page }) => {
   await loginViaUi(page, 'e1_user', 'test123456', /\/home$/)
   await page.goto('/admin/dashboard')
   await expect(page).toHaveURL(/\/home$/)
+})
+
+test('checkout waits for address initialization before accepting submit', async ({ page, request }) => {
+  await loginViaUi(page, 'e1_user', 'test123456', /\/home$/)
+  const token = await apiLogin(request, 'e1_user', 'test123456')
+  const medicineId = await findMedicineId(page, 'E1 OTC 感冒灵颗粒')
+  await apiJson(request, token, 'POST', '/api/user/cart/items', { medicineId, quantity: 1 })
+  const cart = await apiJson<{ items: { cartItemId: number; medicineId: number }[] }>(
+    request, token, 'GET', '/api/user/cart'
+  )
+  const item = cart.items.find(entry => entry.medicineId === medicineId)!
+  let releaseAddresses!: () => void
+  const addressGate = new Promise<void>(resolve => { releaseAddresses = resolve })
+  await page.route('**/api/user/addresses', async route => {
+    await addressGate
+    await route.continue()
+  })
+  try {
+    await page.goto(`/checkout?ids=${item.cartItemId}`)
+    const submit = page.getByRole('button', { name: '提交订单' })
+    await expect(submit).toBeDisabled()
+    releaseAddresses()
+    await expect(page.getByRole('radio').first()).toBeChecked()
+    await expect(submit).toBeEnabled()
+  } finally {
+    releaseAddresses()
+    const removed = await request.delete(`/api/user/cart/items/${item.cartItemId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    expect((await removed.json()).code).toBe(0)
+  }
 })

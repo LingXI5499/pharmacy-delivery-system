@@ -38,6 +38,14 @@
 
 测试落点：`PaymentServiceTest`、`RefundServiceTest`、`PaymentRefundMySqlIntegrationTest`（`DB_URL` 门控，覆盖 10 次并发支付/退款回调）。
 
+## S1：支付期限与数据库关单兜底
+
+- 基线 `main@a0b414e`；用户提供 `pharmacy-stability-s1.zip` 候选补丁，经本地源码匹配后应用，并修复 MyBatis-Plus `insert` 重载导致的测试编译歧义。
+- 复用本仓库 `OrderTimeoutService.closeIfPending` 的 MySQL 行锁与事务，不复制其他仓库代码，不新增第三方源码许可证义务。
+- `PaymentTimeoutReconciliationTask` 只枚举 ID，逐单通过事务代理调用关单服务；`PaymentService.callback` 在订单锁内校验支付期限，终态回调仍可幂等重放。
+- 拒绝扫描直接改状态及仅依赖 MQ TTL；测试落点包含真实 MySQL 扫描、并发、回滚和迟到支付，缓存碰撞使用实际 Spring 缓存代理验证。
+- 为通过现有依赖审计，锁文件仅在既有版本范围内更新；不改依赖主版本和前端业务。E2E 工作流补充 main PR 触发，适配用户要求的主分支交付。
+
 ## B1：库存盘点、差异对账与近效期
 
 | 参考与核验 | 代码级核验点 | 采用的不变量 | 明确拒绝 / 许可证结论 |
